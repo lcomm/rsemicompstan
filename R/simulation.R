@@ -79,9 +79,9 @@ make_Xmats <- function(n, formulas = NULL, covariate_data = NULL) {
 #' @param ftype Type of frailty pattern 
 #' 0 = All 0
 #' 1 = single, 
-#' 2 = Tx-specific but shared within treatment arms
+#' 2 = Tx-specific but shared within a treatment arm
 #' 3 = transition-specific but shared across treatment arms
-#' 4 = Completely 
+#' 4 = Completely distinct
 #' @param distn Distribution; default = "norm"
 #' (required to be multivariate normal for now)
 #' @param fSig User-provided variance-covariance matrix for frailty vector (optional); 
@@ -312,6 +312,7 @@ simulate_entire_truth <- function(n = 100, ftype = 1, fctype = 1, exp = TRUE,
   return(dat)
   
 }
+
 
 
 

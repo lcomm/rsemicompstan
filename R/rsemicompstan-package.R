@@ -2,7 +2,6 @@
 #'
 #' @docType package
 #' @name rsemicompstan-package
-#' @alias rsemicompstan
 #' @useDynLib rsemicompstan, .registration = TRUE
 #'
 #' @import methods
