@@ -1,0 +1,82 @@
+---
+title: "Demonstration of arm-specific frailty"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Arm-specific frailties with varying frailty coefficients}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+# Data simulation
+
+TODO(LCOMM): add problem setup
+
+```{r}
+set.seed(123)
+n <- 500
+
+# simulate with arm-specific (ftype 2) and all different frailty coefs (fctype 4)
+dat_list <- simulate_entire_truth(n, ftype = 2, fctype = 4)
+dat <- dat_list$dat
+dat$tx <- rbinom(n, size = 1, prob = 0.5)
+dat$yr <- ifelse(dat$tx, dat$R1, dat$R0)
+dat$dyr <- ifelse(dat$tx, dat$deltaR1, dat$deltaR0)
+dat$yt <- ifelse(dat$tx, dat$D1, dat$D0)
+dat$dyt <- ifelse(dat$tx, dat$deltaD1, dat$deltaD0)
+```
+
+## Examining simulated data
+
+```{r}
+library("survival")
+# Plots
+km_r <- survfit(Surv(yr, dyr) ~ tx, data = dat)
+plot(km_r, mark.time = T, col = 1:2, main = "Rehospitalization")
+
+km_t_no_r <- survfit(Surv(yt, dyt) ~ tx, data = dat[dat$dyr == 0,])
+plot(km_t_no_r, mark.time = T, col = 1:2, main = "Death among unrehospitalized")
+
+km_soj <- survfit(Surv(yt - yr, dyt) ~ tx, data = dat[dat$dyr == 1,])
+plot(km_soj, mark.time = T, col = 1:2, main = "Sojourn to death")
+```
+
+## Fit semicompeting risks model
+
+### Stan model code
+
+The arm-specific model with varying frailties is coded in `scr2.stan`.
+
+```{r, code = readLines("../src/stan_files/scr2.stan"), eval = FALSE}
+```
+TODO(LCOMM): explain code
+
+Fit the model using the built-in function.
+```{r}
+# Design matrices (one for each hazard model)
+x_1 <- x_2 <- x_3 <- cbind(dat$X1, dat$X2, dat$X3)
+
+# Stan fit
+sf <- scr2_stan(dat$tx, x_1 = x_1, x_2 = x_2, x_3 = x_3, 
+                yr = dat$yr, dyr = dat$dyr, yt = dat$yt, dyt = dat$dyt,
+                chains = 2, iter = 2000)
+```
+
+TODO(LCOMM): fix divergent transitions
+
+# Validation of parameter estimation
+
+TODO(LCOMM): show estimates are near data generating parameters
+
+Let's compare posterior means to the true data-generating parameters:
+
+```{r}
+print(dat_list$coefs)
+true_params <- convert_coefs(dat_list$coefs)
+print(true_params)
+```
+
+```{r}
+summary(sf, 
+        pars = c("omega1", "omega2", "omega3", "beta", "kappa", "alpha"), 
+        probs = c(0.1, 0.5, 0.9))$summary[,c("mean", "10%", "50%", "90%", "n_eff", "Rhat")]
+```
