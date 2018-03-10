@@ -6,20 +6,22 @@
 #' @param n Number of observations
 #' @param p Number of covariates to simulate
 #' @return Data frame of 3 observations and 3 columns
+#' @export
 simulate_covariate_data <- function(n = 100, p = 3) {
   
   # Very basic parameter check
   stopifnot(p > 1)
   
   # Simulate binary covariates of moderate prevalences
+  # Covariates centered around true prevalence
   dat <- data.frame(row.names = 1:n)
   if (p > 1) {
     prevs <- seq(0.4, 0.2, length.out = p)
     for (j in 1:p) {
-      dat[[paste0("X", j)]] <- rbinom(n, size = 1, prob = prevs[j])
+      dat[[paste0("X", j)]] <- rbinom(n, size = 1, prob = prevs[j]) - prevs[j]
     }
   } else if (p == 1) {
-    dat$X1 <- rbinom(n, size = 1, prob = 0.5)
+    dat$X1 <- rbinom(n, size = 1, prob = 0.5) - 0.5
   }
   
   # Return
@@ -36,6 +38,7 @@ simulate_covariate_data <- function(n = 100, p = 3) {
 #' @param covariate_data Data frame containing covariates; if none, then will
 #' simulate data frame with 3 binary covariates of size n
 #' @return List of 6 model.matrix outputs
+#' @export
 make_Xmats <- function(n, formulas = NULL, covariate_data = NULL) {
   
   # Basic parameter checks
@@ -87,6 +90,7 @@ make_Xmats <- function(n, formulas = NULL, covariate_data = NULL) {
 #' @param fSig User-provided variance-covariance matrix for frailty vector (optional); 
 #' default is to set variances to 1 and any correlations to 0.5
 #' @return n x 6 numeric matrix of frailties
+#' @export
 simulate_frailties <- function(n, ftype = 1, distn = "norm", fSig = NULL) {
   
   # Require mvtnorm package
@@ -162,6 +166,7 @@ simulate_frailties <- function(n, ftype = 1, distn = "norm", fSig = NULL) {
 #' Type 3: Frailty coefficients are transition-specific
 #' Type 4: All frailty coefficients are different
 #' @return Length 6 vector of frailty coefficients
+#' @export
 give_frailty_coefs <- function(fctype = 1) {
   
   # Set frailty coefficients based on type
@@ -185,6 +190,7 @@ give_frailty_coefs <- function(fctype = 1) {
 #' @param exp Whether
 #' @return Named list of regression coefficients (rcoefs) and frailty 
 #' coefficients (fcoefs) by arm ("control" and "treated")
+#' @export
 give_coefs <- function(Xmats, fctype = 1, exp = TRUE) {
   
   # Extract number of columns for the design matrices
@@ -224,6 +230,7 @@ give_coefs <- function(Xmats, fctype = 1, exp = TRUE) {
 #' @param frailties n x 6 matrix of frailties
 #' see output of \code{\link{simulate_frailties}} for details on input type
 #' @return n x 8 dataframe with potential outcomes under control and treated
+#' @export
 simulate_poutcomes <- function(Xmats, coefs, frailties) {
 
   # Very basic parameter checks
@@ -289,7 +296,8 @@ simulate_poutcomes <- function(Xmats, coefs, frailties) {
 #' @param exp Whether exponential (TRUE) or Weibull
 #' @param p Number of covariates to simulate
 #' @param formulas List of formulas for models
-#' @return Data frame of n observations
+#' @return Named list of (1) Data frame of n observations, (2) parameters
+#' @export
 simulate_entire_truth <- function(n = 100, ftype = 1, fctype = 1, exp = TRUE, 
                                   p = 3, formulas = NULL, ...) {
   
@@ -302,17 +310,39 @@ simulate_entire_truth <- function(n = 100, ftype = 1, fctype = 1, exp = TRUE,
   dfrailties <- as.data.frame(frailties)
   dat <- simulate_poutcomes(Xmats, coefs, frailties)
   
-  
   # Combine into single outcome data set
   dfrailties$id <- cov_dat$id <- dat$id <- 1:n
   dat <- merge(cov_dat, dat, by = "id")
   dat <- merge(dat, dfrailties, by = "id")
   
-  # Return entire data set
-  return(dat)
+  # Return list
+  return(list(dat = dat, coefs = coefs))
   
 }
 
+#' Convert output of \code{\link{give_coefs}} function into Stan model params
+#' 
+#' @param coefs List of put from \code{\link{give_coefs}}
+#' @return Named list of parameters as coded in Stan
+#' @export
+convert_coefs <- function(coefs) {
+  
+  # Case check
+  stopifnot(coefs$control$rcoefs[,1][-1] == coefs$treated$rcoefs[,1][-1],
+            coefs$control$rcoefs[,2][-1] == coefs$treated$rcoefs[,2][-1],
+            coefs$control$rcoefs[,3][-1] == coefs$treated$rcoefs[,3][-1])
+  
+  #TODO(LCOMM): expand beyond arm-specific case?
+  a <- list()
+  a$omega1 <- coefs$control$rcoefs[,1][-1]
+  a$omega2 <- coefs$control$rcoefs[,2][-1]
+  a$omega3 <- coefs$control$rcoefs[,3][-1]
+  a$beta <- c(coefs$control$fcoefs, coefs$treated$fcoefs)
+  a$kappa <- c(coefs$control$rcoefs[1,], coefs$treated$rcoefs[1,])
+  a$alpha <- c(coefs$control$shapes, coefs$treated$shapes)
+  
+  return(a)
+}
 
 
 
