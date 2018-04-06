@@ -47,9 +47,31 @@ functions {
   }
   
   return ll;
-  }  
+  }
+  
+  vector get_norm_consts (vector yr, vector yt, int[] dyr, int[] dyt) {
+    vector[3] norm_const;
+    vector[num_elements(dyt)] dyt_v = to_vector(dyt);
+    vector[num_elements(dyr)] dyr_v = to_vector(dyr);
+    
+    // nonterminal model: log(number of nonterminal events/persontime)
+    norm_const[1] = log(sum(dyr)/sum(yr));
+    
+    // terminal without nonterminal: only sum event indicator and death time 
+    // among people for whom dyr = 0
+    norm_const[2] = log(dot_product(dyt_v, 1 - dyr_v) / 
+                        dot_product(yt, 1 - dyr_v));
+    
+    // terminal after nonterminal: only sum event indicator and sojourn time 
+    // among people for whom dyr = 1
+    norm_const[3] = log(dot_product(dyt_v, dyr_v) / 
+                        dot_product(yt - yr, dyr_v));
+    
+    return norm_const;
+  }
   
 } 
+
 data {
   // number of observations
   int<lower=0> N;
@@ -79,6 +101,7 @@ data {
 
 transformed data {
   real rho = 0.5; // covariance for arm-specific frailties
+  vector[3] norm_const = get_norm_consts(yr, yt, dyr, dyt);
 }
 
 parameters {
@@ -91,15 +114,29 @@ parameters {
   // alpha > 1 -> hazard increases over time, more clumping
   vector<lower=0>[6] alpha;
   
-  // scale parameters
+  // scale parameters (without shift to make expected event time near 1)
   // bigger kappa -> faster event occurrence
-  vector[6] kappa;
+  vector[6] kappa_raw;
   
   // frailty coefficients
-  vector[6] beta;
+  real beta1;
+  real<lower=0> beta2;
+  real beta3;
   
   // arm-specific frailties (for the observed arm only)
   vector[N] gamma_obs;
+}
+
+transformed parameters {
+  vector[6] kappa;
+  vector[6] beta;
+  
+  // add shifts
+  kappa[1:3] = kappa_raw[1:3] + norm_const;
+  kappa[4:6] = kappa_raw[4:6] + norm_const;
+  
+  // make beta vector
+  beta = [ beta1, beta2, beta3, beta1, beta2, beta3 ]';
 }
 
 model {
