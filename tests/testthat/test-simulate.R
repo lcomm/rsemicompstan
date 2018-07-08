@@ -10,6 +10,16 @@ all_elements_equal <- function(x, tol = .Machine$double.eps^0.5) {
 
 context("Data simulation")
 
+test_that("Simulated gamma frailties have variance sigma", {
+  
+  set.seed(123)
+  for (sigma in c(0.4, 2, 5)) {
+    frailties <- simulate_frailty(n = 10^6, sigma = sigma)
+    expect_equal(round(var(frailties), 1), sigma)  
+  }
+  
+})
+
 test_that("Frailty coefficients match descriptions", {
   
   # Type 0: All-zero case
