@@ -11,6 +11,9 @@ data {
   vector<lower=0>[N] yt;
   int<lower=0,upper=1> dyr[N];
   int<lower=0,upper=1> dyt[N];
+  int<lower=0,upper=1> use_priors;
+  vector[6] log_alpha_pmean;
+  vector[6] log_kappa_pmean;
 }
 
 transformed data {
@@ -37,7 +40,7 @@ parameters {
   
   // shape parameters (the one in exponent of time)
   // alpha > 1 -> hazard increases over time, more clumping
-  vector[6] log_alpha;
+  vector[6] log_alpha; 
   
   // scale parameters (without shift to make expected event time near 1)
   // bigger kappa -> faster event occurrence
@@ -58,7 +61,12 @@ model {
   real lp3;
   
   // TODO(LCOMM): add other priors
-  to_vector(beta) ~ normal(0, 1);
+  if (use_priors == 1) {
+    to_vector(beta) ~ normal(0, 2.5);
+    log_alpha ~ normal(log_alpha_pmean, 2);
+    log_kappa ~ normal(log_kappa_pmean, log(100)/2);
+  }
+  
   
   // likelihood
   for (n in 1:N) {
