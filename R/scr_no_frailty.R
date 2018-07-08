@@ -6,6 +6,7 @@
 #' @param yr Length-N vector of terminal event times
 #' @param dyr Length-N vector binary indicators for having observed the 
 #' non-terminal event
+#' @param use_priors Whether to use weakly informative/data-driven priors
 #' @param dyt Length-N vector binary indicators for having observed the 
 #' terminal event
 #' @param ... Additional parameters to pass to `rstan::sampling`
@@ -30,7 +31,12 @@
 #'                            iter = 2000, chains = 4)
 #' }
 #' @export
-scr_no_frailty_stan <- function(x, z, yr, yt, dyr, dyt, ...) {
+scr_no_frailty_stan <- function(x, z, yr, yt, dyr, dyt, use_priors = TRUE, ...) {
+  if (use_priors) {
+    pm <- make_prior_means(yr = yr, yt = yt, dyr = dyr, dyt = dyt)  
+  } else {
+    pm <- list(log_alpha_pmean = rep(0, 6), log_kappa_pmean = rep(0, 6))
+  }
   out <- rstan::sampling(stanmodels$scr_no_frailty, 
                          data = list(N = NROW(x), 
                                      z = z,
@@ -38,7 +44,10 @@ scr_no_frailty_stan <- function(x, z, yr, yt, dyr, dyt, ...) {
                                      yr = yr,
                                      yt = yt,
                                      dyr = dyr,
-                                     dyt = dyt), 
+                                     dyt = dyt,
+                                     use_priors = use_priors * 1,
+                                     log_alpha_pmean = pm$log_alpha_pmean,
+                                     log_kappa_pmean = pm$log_kappa_pmean), 
                          ...)
   return(out)
   

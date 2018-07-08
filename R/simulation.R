@@ -1,5 +1,3 @@
-# Functions for simulating illness-death data
-
 #' Assign a binary treatment Z 
 #' 
 #' @param n Number of observations to randomize
@@ -117,7 +115,7 @@ expand_to_full <- function(x) {
 
 
 
-#' Simulate Weibull potential outcomes from scratch, making a "science" table
+#' Simulate Weibull potential outcomes from scratch, making a science table
 #' 
 #' @param xmat N x P design matrix
 #' @param beta P x 3 or P x 6 matrix for regression coefficient i in model j
@@ -139,7 +137,7 @@ simulate_science <- function(xmat, beta, alpha, kappa, frailty) {
   
   # Expand if not already in 6-column format
   beta <- expand_to_full(beta)
-  frailty <- expand_to_full(frailty)
+  frailty <- matrix(frailty, nrow = n, ncol = 6)
   kappa <- matrix(rep(kappa, each = n), ncol = 6)
   alpha <- matrix(rep(alpha, each = n), ncol = 6)
 
@@ -210,22 +208,9 @@ simulate_science <- function(xmat, beta, alpha, kappa, frailty) {
   
 }
 
-# use_sim_ID <- function(xmat, beta, alpha, kappa, frailty) {
-#   xmat <- cbind(log(frailty), xmat)
-#   beta <- cbind(1, beta)
-#   dat <- SemiCompRisks::simID(cluster = NULL, 
-#                x1 = xmat, x2 = xmat, x3 = xmat, 
-#                beta1.true = beta[1,], beta2.true = beta[2,], 
-#                beta3.true = beta[3,], 
-#                alpha1.true = alpha[1], alpha2.true, alpha3.true, 
-#                kappa1.true, kappa2.true, kappa3.true, 
-#                theta.true = 0, SigmaV.true = NULL,
-#                cens = c(qweibull(0.5, shape = alpha2.true, scale = 1),
-#                         qweibull(0.9, shape = alpha2.true, scale = 1))) 
-# }
 
 
-#' Convert a full "science table" to observed data and counterfactuals
+#' Convert a full science table to observed data and counterfactuals
 #' 
 #' @param dat Data frame containing assigned treatment Z, 
 #' event times R0, R1, D0, D1, and observation indicators deltaR0, deltaR1,
@@ -234,15 +219,15 @@ simulate_science <- function(xmat, beta, alpha, kappa, frailty) {
 #' @export
 convert_science_to_obs <- function(dat) {
   
-  dat$yr  <- ifelse(dat$Z, dat$R1, dat$R0)
-  dat$yt  <- ifelse(dat$Z, dat$D1, dat$D0)
-  dat$dyr <- ifelse(dat$Z, dat$deltaR1, dat$deltaR0)
-  dat$dyt <- ifelse(dat$Z, dat$deltaD1, dat$deltaD0)
+  dat$yr  <- ifelse(dat$Z, dat$yr1, dat$yr0)
+  dat$yt  <- ifelse(dat$Z, dat$yt1, dat$yt0)
+  dat$dyr <- ifelse(dat$Z, dat$dyr1, dat$dyr0)
+  dat$dyt <- ifelse(dat$Z, dat$dyt1, dat$dyt0)
   
-  dat$yr_mis  <- ifelse(dat$Z == 0, dat$R1, dat$R0)
-  dat$yt_mis  <- ifelse(dat$Z == 0, dat$D1, dat$D0)
-  dat$dyr_mis <- ifelse(dat$Z == 0, dat$deltaR1, dat$deltaR0)
-  dat$dyt_mis <- ifelse(dat$Z == 0, dat$deltaD1, dat$deltaD0)
+  dat$yr_mis  <- ifelse(dat$Z == 0, dat$yr1, dat$yr0)
+  dat$yt_mis  <- ifelse(dat$Z == 0, dat$yt1, dat$yt0)
+  dat$dyr_mis <- ifelse(dat$Z == 0, dat$dyr1, dat$dyr0)
+  dat$dyt_mis <- ifelse(dat$Z == 0, dat$dyt1, dat$dyt0)
   
   return(dat)
 }
@@ -259,9 +244,13 @@ convert_science_to_obs <- function(dat) {
 #' @return List containg: dat, a data frame of N observations
 #' @examples
 #' \dontrun{
-#' simulate_data(n = 5000, alpha = c(1, 1.2, 1, 1, 1.2, 1), 
-#' beta = matrix((1:3)/10, nrow = 3, ncol = 6),
-#' kappa = 1 + (1:6)/10, sigma = 1, p = 3)
+#' set.seed(42)
+#' dat <- simulate_data(n = 5000, alpha = c(1, 1.2, 1, 1, 1.2, 1),
+#'                      beta = matrix((1:3)/10, nrow = 3, ncol = 6),
+#'                      kappa = 1 + (1:6)/10, sigma = 0.0001, p = 3)
+#' bfit <- scr_no_frailty_stan(x = cbind(dat$X1, dat$X2, dat$X3), 
+#'                             z = as.numeric(dat$Z), yr = dat$yr, yt = dat$yt,
+#'                             dyr = dat$dyr, dyt = dat$dyt)
 #' }
 #' @export
 simulate_data <- function(n, alpha, beta, kappa, sigma, p = 3) {
@@ -301,22 +290,27 @@ make_xmat_all_X <- function(dat){
 #' Fits frequentist intercept-only models to center log-alpha and log-kappa
 #' around reasonable values
 #' 
-#' @param dat Data frame to fit models
+#' @param yr Nonterminal event time
+#' @param yt Terminal event time
+#' @param dyr Nonterminal event observation indicator
+#' @param dyt Terminal event observation indicator
 #' @return Named list of length-6 vectors of prior means for log(alpha) and 
 #' log(kappa)
-make_prior_means <- function(dat) {
+make_prior_means <- function(yr, yt, dyr, dyt) {
   log_kappa_pmean <- log_alpha_pmean <- rep(NA, 6)
-  soj <- dat$yt - dat$yr
-  time_h1  <- dat$yr
-  event_h1 <- dat$dyr
-  time_h2  <- dat$yt[dat$dyr == 0]
-  event_h2 <- dat$dyt[dat$dyr == 0]
-  time_h3  <- soj[dat$dyr == 1]
-  event_h3 <- dat$dyt[dat$dyr == 1]
+  soj <- yt - yr
+  time_h1  <- yr
+  event_h1 <- dyr
+  time_h2  <- yt[dyr == 0]
+  event_h2 <- dyt[dyr == 0]
+  time_h3  <- soj[dyr == 1]
+  event_h3 <- dyt[dyr == 1]
   pmeans   <- rbind(get_prior_mean_from_mle(time_h1, event_h1),
                     get_prior_mean_from_mle(time_h2, event_h2),
                     get_prior_mean_from_mle(time_h3, event_h3))
   return(list(log_alpha_pmean = rep(pmeans[, 1], 2),
               log_kappa_pmean = rep(pmeans[, 2], 2)))
 }
+
+
 
