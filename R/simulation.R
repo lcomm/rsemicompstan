@@ -1,4 +1,13 @@
-# Functions for simulating illness-death data
+#' Assign a binary treatment Z 
+#' 
+#' @param n Number of observations to randomize
+#' @param treated_fraction Fraction of sample to have = 1
+#' @return Length-n vector of 0s (if control) or 1s (if treated)
+#' @export
+assign_Z <- function(n, treated_fraction = 0.5) {
+  return((1:n %in% sample(1:n, round(n * treated_fraction))) * 1)
+}
+
 
 
 #' Function to simulate basic covariate data
@@ -7,10 +16,10 @@
 #' @param p Number of covariates to simulate
 #' @return Data frame of 3 observations and 3 columns
 #' @export
-simulate_covariate_data <- function(n = 100, p = 3) {
+simulate_covariates <- function(n = 100, p = 3) {
   
   # Very basic parameter check
-  stopifnot(p > 1)
+  stopifnot(p > 0)
   
   # Simulate binary covariates of moderate prevalences
   # Covariates centered around true prevalence
@@ -26,256 +35,171 @@ simulate_covariate_data <- function(n = 100, p = 3) {
   
   # Return
   return(dat)
-  
+
 }
 
-  
-#' Make design matrices from data (or simulate all data)
+
+
+#' Function to generate frailties
 #' 
-#' @param n Number of observations
-#' @param formulas List of 6 regression formulas; if none, all covariate main 
-#' effects will be included. If 1, same formula will be used for all 6
-#' @param covariate_data Data frame containing covariates; if none, then will
-#' simulate data frame with 3 binary covariates of size n
-#' @return List of 6 model.matrix outputs
-#' @export
-make_Xmats <- function(n, formulas = NULL, covariate_data = NULL) {
-  
-  # Basic parameter checks
-  #TODO(LCOMM): add ability to have unequal numbers of covariates?
-  #TODO(LCOMM): add formula checking?
-
-  # Make covariate data if none exists
-  if (is.null(covariate_data)) {
-    covariate_data <- simulate_covariate_data(n, p = 3)
-  } else {
-    stopifnot(is.data.frame(covariate_data))
-    stopifnot(anyNA(covariate_data) == FALSE)
-    stopifnot(NROW(covariate_data) == n)
-  }
-  
-  # Assume all covariates in all formulas if none provided
-  if (is.null(formulas)) {
-    formulas <- replicate(6, formula(~ 1 + .))
-  } else {
-    stopifnot(is.list(formulas), length(formulas) == 6)
-  }
-  
-  # Make Xmats list
-  Xmats <- as.list(rep(NA, 6))
-  for (i in 1:6) {
-    Xmats[[i]] <- model.matrix(formulas[[i]], data = covariate_data)
-  }
-  
-  # Return
-  return(Xmats)
-  
-}
-
-
-#' Function to generate frailty matrix
-#' 
-#' Columns correspond to hazard models, rows are individuals
-#' Individuals are assumed independent
-#' Frailties within a person are multivariate normal
-#' @param n Number of observations
-#' @param ftype Type of frailty pattern 
-#' 0 = All 0
-#' 1 = single, 
-#' 2 = Tx-specific but shared within a treatment arm
-#' 3 = transition-specific but shared across treatment arms
-#' 4 = Completely distinct
-#' @param distn Distribution; default = "norm"
-#' (required to be multivariate normal for now)
-#' @param fSig User-provided variance-covariance matrix for frailty vector (optional); 
-#' default is to set variances to 1 and any correlations to 0.5
-#' @return n x 6 numeric matrix of frailties
-#' @export
-simulate_frailties <- function(n, ftype = 1, distn = "norm", fSig = NULL) {
-  
-  # Require mvtnorm package
-  if (!requireNamespace("mvtnorm", quietly = TRUE)) {
-    stop("mvtnorm needed for this function to work. Please install it.",
-         call. = FALSE)
-  }
-  
-  # Very basic parameter checking
-  stopifnot(NROW(ftype) == 1, ftype %in% 0:4, distn == "norm")
-  
-  # Return all zeros if requested
-  if (ftype == 0) {
-    return(matrix(0, nrow = n, ncol = 6))
-  }
-  
-  if (is.null(fSig)) {
-    
-    # Type 1: completely shared frailty
-    fSig <- matrix(1, nrow = 6, ncol = 6)
-    
-    # Type 2: 2 treatment-specific frailties, potentially correlated
-    # Default is a correlation of 0.5
-    fSig <- matrix(0.5, nrow = 6, ncol = 6)
-    fSig[1:3, 1:3] <- 1
-    fSig[4:6, 4:6] <- 1
-  
-    # Type 3: 3 transition-specific frailties, potentially correlated
-    # Default block is a compound symmetric with off-diagonal 0.5
-    b <- matrix(0.5, nrow = 3, ncol = 3)
-    diag(b) <- 1
-    r <- cbind(b, b)
-    fSig <- rbind(r, r)
-    
-    # Type 4: 6 hazard-specific frailties, all potentially correlated
-    # Default block is a compound symmetric with off-diagonal 0.5
-    fSig <- matrix(0.5, nrow = 6, ncol = 6)
-    diag(fSig) <- 1
-    
-  } else {
-    
-    # Need matrixcalc package
-    if (!requireNamespace("matrixcalc", quietly = TRUE)) {
-      stop("matrixcalc needed for this function to work. Please install it.",
-           call. = FALSE)
-    }
-    
-    # Basic parameter checking on provided covariance matrix
-    stopifnot(is.numeric(fSig), is.matrix(fSig), dim(fSig) == c(6,6),
-              matrixcalc::is.positive.semi.definite(fSig))
-    
-  }
-  
-  # Return frailty matrix
-  return(mvtnorm::rmvnorm(n, sigma = fSig))
-  
-}
-
-
-#' Make vector of frailty coefficients
+#' Draw n i.i.d. frailties from a Gamma($\sigma^{-1}$, $\sigma^{-1}$)\
 #'
-#' Position is the model the coefficient belongs to
-#' 1 = healthy-ill transition in control
-#' 2 = healthy-dead transition in control
-#' 3 = ill-dead transition in control
-#' 4 = healthy-ill transition in treated
-#' 5 = healthy-dead transition in treated
-#' 6 = ill-dead transition in treated
-#' @param fctype Frailty coefficient type 0-6; default is 1
-#' Type 0: Underlying frailty is irrelevant
-#' Type 1: All coeffients are identical, not 0
-#' Type 2: Frailty coefficients are treatment-specific
-#' Type 3: Frailty coefficients are transition-specific
-#' Type 4: All frailty coefficients are different
-#' @return Length 6 vector of frailty coefficients
+#' @param n Number of observations
+#' @param sigma Variance for gamma frailty
+#' @return Length-n numeric matrix of frailties
 #' @export
-give_frailty_coefs <- function(fctype = 1) {
+simulate_frailty <- function(n, sigma = 1) {
   
-  # Set frailty coefficients based on type
-  betas <- switch(as.character(fctype),
-                  "0" = rep(0, 6),
-                  "1" = rep(0.2, 6),
-                  "2" = c(rep(0.15, 3), rep(0.05, 3)),
-                  "3" = c(c(0.1, 0.2, 0.3), c(0.1, 0.2, 0.3)),
-                  "4" = seq(0.30, 0.05, length.out = 6))
+  stopifnot(is.numeric(sigma), length(sigma) == 1, sigma > 0)
   
-  # Return
-  return(betas)
-
-}
-
-#' Create list of regression and frailty coefficients 
-#' 
-#' @param Xmats List of 6 design matrices, of potentially varying column #s
-#' @param fctype Type of the frailty coefficients; default is 1
-#' see \code{\link{give_frailty_coefs}} for details
-#' @param exp Whether
-#' @return Named list of regression coefficients (rcoefs) and frailty 
-#' coefficients (fcoefs) by arm ("control" and "treated")
-#' @export
-give_coefs <- function(Xmats, fctype = 1, exp = TRUE) {
-  
-  # Extract number of columns for the design matrices
-  ps <- sapply(Xmats, dim, simplify = TRUE)[2, ]
-  
-  # Regression coefficients, made so that treatment effect on logHR is -0.2
-  # Corresponds to HR of ~0.81
-  # Same for both non-terminal and terminal hazards
-  # (Treatment effect is difference in intercepts since everything else is same)
-  rcoefs <- sapply(ps, function(x) { c(-1, seq(0.1, 0.2, length.out = x - 1)) })
-  rcoefs[1, 4:6] <- -1.2
-  
-  # Shape parameters for Weibull
-  # Moderate deviation from Exponential if not forced to be Exponential
-  shapes <- if (exp) { rep(1, 6) } else { c(0.95, 1.0, 1.05, 0.95, 1.0, 1.05) }
-  
-  # Frailty coefficients
-  fcoefs <- give_frailty_coefs(fctype)
-  
-  # Package nicely
-  coefs <- list()
-  coefs[["control"]] <- list(rcoefs = rcoefs[, 1:3], fcoefs = fcoefs[1:3],
-                             shapes = shapes[1:3])
-  coefs[["treated"]] <- list(rcoefs = rcoefs[, 4:6], fcoefs = fcoefs[4:6],
-                             shapes = shapes[4:6])
-  
-  # Return
-  return(coefs)
+  # Variance for rgamma parameterization is shape * scale^2
+  return(rgamma(n, shape = 1 / sigma, scale = sigma))
   
 }
 
-#' Simulate Weibull potential outcomes in both exposure arms
-#' 
-#' @param Xmats List of 6 design matrices (first 3 control, 2nd 3 are tx)
-#' @param coefs List of control and treated regression coefs and Weibull shapes
-#' see output of \code{\link{give_coefs}} for details on input type
-#' @param frailties n x 6 matrix of frailties
-#' see output of \code{\link{simulate_frailties}} for details on input type
-#' @return n x 8 dataframe with potential outcomes under control and treated
-#' @export
-simulate_poutcomes <- function(Xmats, coefs, frailties) {
 
-  # Very basic parameter checks
-  stopifnot(is.list(Xmats), length(Xmats) == 6)
-  stopifnot(is.list(coefs), names(coefs) == c("control", "treated"))
-  stopifnot(is.matrix(frailties), NCOL(frailties) == 6)
+#' Fit a maximum likelihood model to center log(alpha) and log(kappa)
+#' at reasonable values
+#' 
+#' @param time Time of event or censoring
+#' @param event Event indicator (if not provided, time is assumed to have no
+#' censoring)
+#' @return Named vector of prior means for log(alpha) and log(kappa)
+#' @export
+get_prior_mean_from_mle <- function(time, event = NULL) {
+  
+  require("survival")
+  
+  if (is.null(event)) {
+    fit <- survreg(Surv(time = time) ~ 1, dist = "weibull")
+  } else {
+    stopifnot(is.numeric(event), all(event %in% c(0, 1)))
+    fit <- survreg(Surv(time = time, event = event) ~ 1, dist = "weibull")
+  }
+  alpha <- 1 / fit$scale
+  log_alpha <- log(alpha)
+  rwei_scale <- exp(unname(coef(fit)[1]))
+  kappa <- rwei_scale^(-alpha)
+  log_kappa <- log(kappa)
+  
+  return(c(log_alpha = log_alpha, log_kappa = log_kappa))
+  
+}
+
+
+
+#' Make a full frailty or regression coefficient matrix from vector or smaller 
+#' matrix
+#' 
+#' @param x Length-N vector of common values to be used for all 6 models
+#' or an N x 3 matrix of transition-specific values
+#' @return N x 6 matrix
+#' @export
+expand_to_full <- function(x) {
+  
+  stopifnot(is.numeric(x), anyNA(x) == FALSE)
+  n <- NROW(x)
+  
+  if (is.matrix(x)) {
+    stopifnot(NCOL(x) %in% c(3, 6))
+    x <- matrix(x, nrow = n, ncol = 6)
+  } else if (is.null(dim(x))){
+    x <- matrix(x, nrow = n, ncol = 6)
+  } else {
+    stop("Cannot parse expansion to 6 model structure")
+  }
+  
+  return(x)
+  
+}
+
+
+
+#' Simulate Weibull potential outcomes from scratch, making a science table
+#' 
+#' @param xmat N x P design matrix
+#' @param beta P x 3 or P x 6 matrix for regression coefficient i in model j
+#' @param alpha Length-6 vector of Weibull shape parameters
+#' @param kappa Length-6 vector of baseline hazards for PH model
+#' @param frailty Length-N vector, N x 3, or N x 6 matrix of frailties
+#' @return N x 8 dataframe with potential outcomes under control and treated
+#' @export
+simulate_science <- function(xmat, beta, alpha, kappa, frailty) {
+  
+  # Parameter checks
+  stopifnot(all(alpha > 0), all(kappa > 0), 
+            NCOL(xmat) == NROW(beta), NROW(xmat) == NROW(frailty))
+  stopifnot(length(kappa) == 6, length(alpha) == 6)
   
   # Initialize data frame for potential outcomes
-  n <- NROW(Xmats[[1]])
+  n <- NROW(xmat)
   dat <- data.frame(row.names = 1:n)
   
-  for (arm_i in 1:2) {
-    z <- arm_i - 1
-    arm <- c("control", "treated")[arm_i]
-    start_i <- c(1, 4)[arm_i]
-    end_i <- start_i + 2
-    arm_rcoefs <- coefs[[arm]][["rcoefs"]]
-    arm_fcoefs <- coefs[[arm]][["fcoefs"]]
-    arm_shapes <- coefs[[arm]][["shapes"]]
-    arm_frailties <- frailties[, start_i:end_i]
-    arm_Xmats <- Xmats[start_i:end_i]
-    arm_lps <- matrix(NA, nrow = NROW(arm_Xmats[[1]]), ncol = 3)
-    for (j in 1:3) {
-      arm_lps[, j] <- arm_Xmats[[j]] %*% arm_rcoefs[, j] + arm_frailties[, j]
-    }
-    arm_scales <- exp(-arm_lps/arm_shapes)
+  # Expand if not already in 6-column format
+  beta <- expand_to_full(beta)
+  frailty <- matrix(frailty, nrow = n, ncol = 6)
+  kappa <- matrix(rep(kappa, each = n), ncol = 6)
+  alpha <- matrix(rep(alpha, each = n), ncol = 6)
+
+  # Pre-calculate linear predictor and Weibull scale parameters
+  lp <- xmat %*% beta + log(frailty) + log(kappa)
+  scales <- exp(-lp/alpha)
+  
+  # Pre-calculate shared censoring time
+  # Censor uniformly between 50th and 90th percentiles of process 2
+  # under the control condition
+  lb <- qweibull(0.5, shape = alpha[1,2], scale = mean(scales[1, 2]))
+  ub <- qweibull(0.9, shape = alpha[1,2], scale = mean(scales[1, 2]))
+  C <- runif(n, min = lb, max = ub)
+  
+  for (start_i in c(1, 4)) {
+    z <- ifelse(start_i == 1, 0, 1)
     
     # Generate data
-    R <- rweibull(n, shape = arm_shapes[1], scale = arm_scales[1])
-    D <- rweibull(n, shape = arm_shapes[2], scale = arm_scales[2])
-    soj <- rweibull(n, shape = arm_shapes[3], scale = arm_scales[3])
+    R <- rweibull(n, shape = alpha[, start_i], scale = scales[, start_i])
+    D <- rweibull(n, shape = alpha[, start_i + 1], scale = scales[, start_i + 1])
+    soj <- rweibull(n, shape = alpha[, start_i + 2], scale = scales[, start_i + 2])
     yesR <- (R < D)
+    if (!any(yesR)) {
+      stop("simulate_poutcomes: did not simulate any non-terminal events!")
+    } else if (all(yesR)) {
+      stop("simulate_poutcomes: simulated all terminal events of same type!")
+    }
     D[yesR] <- R[yesR] + soj[yesR]
-    deltaR <- yesR * 1
-    deltaD <- rep(1, n) # assuming no censoring
-    R[deltaR == 0] <- D[deltaR == 0]
-    
-    # TODO(LCOMM): Add censoring later
-    
+    deltaR <- rep(NA, n)
+    deltaD <- rep(NA, n)
+    yr <- R
+    yt <- D
+    ind01 <- which((D < R) & (D < C))
+    yr[ind01] <- D[ind01]
+    deltaR[ind01] <- 0
+    deltaD[ind01] <- 1
+    ind10 <- which((R < D) & (R < C) & (D >= C))
+    yt[ind10] <- C[ind10]
+    deltaR[ind10] <- 1
+    deltaD[ind10] <- 0
+    ind00 <- which((R >= C) & (D >= C))
+    yr[ind00] <- C[ind00]
+    yt[ind00] <- C[ind00]
+    deltaR[ind00] <- 0
+    deltaD[ind00] <- 0
+    ind11 <- which((R < C) & (D < C) & (R < D))
+    deltaR[ind11] <- 1
+    deltaD[ind11] <- 1
+    dyr <- deltaR
+    dyt <- deltaD
+  
     # Save in data set
-    arm_names <- paste0(c("R", "D", "deltaR", "deltaD"), z)
+    to_name <- c("R", "D", "deltaR", "deltaD", "yr", "yt", "dyr", "dyt")
+    arm_names <- paste0(to_name, z)
     dat[[arm_names[1]]] <- R
     dat[[arm_names[2]]] <- D
     dat[[arm_names[3]]] <- deltaR
     dat[[arm_names[4]]] <- deltaD
+    dat[[arm_names[5]]] <- yr
+    dat[[arm_names[6]]] <- yt
+    dat[[arm_names[7]]] <- dyr
+    dat[[arm_names[8]]] <- dyt
     
   }
   
@@ -285,65 +209,108 @@ simulate_poutcomes <- function(Xmats, coefs, frailties) {
 }
 
 
-#' Function to simulate data set with entire truth (frailties, po's, etc)
+
+#' Convert a full science table to observed data and counterfactuals
 #' 
-#' Generate a truth table (with both potential outcome sets) for an 
-#' illness-death model
+#' @param dat Data frame containing assigned treatment Z, 
+#' event times R0, R1, D0, D1, and observation indicators deltaR0, deltaR1,
+#' deltaD0, and deltaD1
+#' @return Data frame with observed Y and counter-to-fact outcomes (_mis)
+#' @export
+convert_science_to_obs <- function(dat) {
+  
+  dat$yr  <- ifelse(dat$Z, dat$yr1, dat$yr0)
+  dat$yt  <- ifelse(dat$Z, dat$yt1, dat$yt0)
+  dat$dyr <- ifelse(dat$Z, dat$dyr1, dat$dyr0)
+  dat$dyt <- ifelse(dat$Z, dat$dyt1, dat$dyt0)
+  
+  dat$yr_mis  <- ifelse(dat$Z == 0, dat$yr1, dat$yr0)
+  dat$yt_mis  <- ifelse(dat$Z == 0, dat$yt1, dat$yt0)
+  dat$dyr_mis <- ifelse(dat$Z == 0, dat$dyr1, dat$dyr0)
+  dat$dyt_mis <- ifelse(dat$Z == 0, dat$dyt1, dat$dyt0)
+  
+  return(dat)
+}
+
+
+#' Simulate data
 #' 
 #' @param n Number of observations
-#' @param ftype Frailty type
-#' @param fctype Frailty coefficient type
-#' @param exp Whether exponential (TRUE) or Weibull
-#' @param p Number of covariates to simulate
-#' @param formulas List of formulas for models
-#' @return Named list of (1) Data frame of n observations, (2) parameters
+#' @param alpha Weibull shape parameters
+#' @param beta Regression coefficient matrix
+#' @param kappa Baseline hazard vector
+#' @param sigma Variance for frailties
+#' @param p Number of covariates
+#' @return List containg: dat, a data frame of N observations
+#' @examples
+#' \dontrun{
+#' set.seed(42)
+#' dat <- simulate_data(n = 5000, alpha = c(1, 1.2, 1, 1, 1.2, 1),
+#'                      beta = matrix((1:3)/10, nrow = 3, ncol = 6),
+#'                      kappa = 1 + (1:6)/10, sigma = 0.0001, p = 3)
+#' bfit <- scr_no_frailty_stan(x = cbind(dat$X1, dat$X2, dat$X3), 
+#'                             z = as.numeric(dat$Z), yr = dat$yr, yt = dat$yt,
+#'                             dyr = dat$dyr, dyt = dat$dyt)
+#' }
 #' @export
-simulate_entire_truth <- function(n = 100, ftype = 1, fctype = 1, exp = TRUE, 
-                                  p = 3, formulas = NULL, ...) {
+simulate_data <- function(n, alpha, beta, kappa, sigma, p = 3) {
   
-  # Make data
-  cov_dat <- simulate_covariate_data(n = n, p = p)
-  Xmats <- make_Xmats(n, formulas = formulas, covariate_data = cov_dat)
-  coefs <- give_coefs(Xmats = Xmats, fctype = fctype, exp = exp)
-  frailties <- simulate_frailties(n, ftype, ...)
-  colnames(frailties) <- paste0("f", 1:6)
-  dfrailties <- as.data.frame(frailties)
-  dat <- simulate_poutcomes(Xmats, coefs, frailties)
+  stopifnot(NROW(beta) == p, NCOL(beta) %in% c(1, 3, 6))
   
-  # Combine into single outcome data set
-  dfrailties$id <- cov_dat$id <- dat$id <- 1:n
-  dat <- merge(cov_dat, dat, by = "id")
-  dat <- merge(dat, dfrailties, by = "id")
-  
-  # Return list
-  return(list(dat = dat, coefs = coefs))
+  cov_dat <- simulate_covariates(n = n, p = p)
+  frailty <- simulate_frailty(n = n, sigma = sigma)
+  xmat <- model.matrix(~ -1 + ., data = cov_dat)
+  out_dat <- simulate_science(xmat = xmat, beta = beta, alpha = alpha, 
+                              kappa = kappa, frailty = frailty)
+  out_dat <- cbind(cov_dat, out_dat)
+  out_dat$Z <- assign_Z(n, treated_fraction = 0.5)
+  out_dat <- convert_science_to_obs(out_dat)
+  return(out_dat)
   
 }
 
-#' Convert output of \code{\link{give_coefs}} function into Stan model params
+
+
+#' Make a design matrix of any covariate with X + a number
 #' 
-#' @param coefs List of put from \code{\link{give_coefs}}
-#' @return Named list of parameters as coded in Stan
+#' Will not include an intercept
+#' 
+#' @param dat Data frame of N observations and P X covariates
+#' @return N x P model matrix
 #' @export
-convert_coefs <- function(coefs) {
-  
-  # Case check
-  stopifnot(coefs$control$rcoefs[,1][-1] == coefs$treated$rcoefs[,1][-1],
-            coefs$control$rcoefs[,2][-1] == coefs$treated$rcoefs[,2][-1],
-            coefs$control$rcoefs[,3][-1] == coefs$treated$rcoefs[,3][-1])
-  
-  #TODO(LCOMM): expand beyond arm-specific case?
-  a <- list()
-  a$omega1 <- coefs$control$rcoefs[,1][-1]
-  a$omega2 <- coefs$control$rcoefs[,2][-1]
-  a$omega3 <- coefs$control$rcoefs[,3][-1]
-  a$beta <- c(coefs$control$fcoefs, coefs$treated$fcoefs)
-  a$kappa <- c(coefs$control$rcoefs[1,], coefs$treated$rcoefs[1,])
-  a$alpha <- c(coefs$control$shapes, coefs$treated$shapes)
-  
-  return(a)
+make_xmat_all_X <- function(dat){
+  is_X <- grep("X[:digit:]*", x = colnames(dat), fixed = FALSE)
+  return(model.matrix(~ -1 + ., data = dat[, is_X]))
 }
 
+
+
+#' Make list containing prior means for alpha and kappa
+#' 
+#' Fits frequentist intercept-only models to center log-alpha and log-kappa
+#' around reasonable values
+#' 
+#' @param yr Nonterminal event time
+#' @param yt Terminal event time
+#' @param dyr Nonterminal event observation indicator
+#' @param dyt Terminal event observation indicator
+#' @return Named list of length-6 vectors of prior means for log(alpha) and 
+#' log(kappa)
+make_prior_means <- function(yr, yt, dyr, dyt) {
+  log_kappa_pmean <- log_alpha_pmean <- rep(NA, 6)
+  soj <- yt - yr
+  time_h1  <- yr
+  event_h1 <- dyr
+  time_h2  <- yt[dyr == 0]
+  event_h2 <- dyt[dyr == 0]
+  time_h3  <- soj[dyr == 1]
+  event_h3 <- dyt[dyr == 1]
+  pmeans   <- rbind(get_prior_mean_from_mle(time_h1, event_h1),
+                    get_prior_mean_from_mle(time_h2, event_h2),
+                    get_prior_mean_from_mle(time_h3, event_h3))
+  return(list(log_alpha_pmean = rep(pmeans[, 1], 2),
+              log_kappa_pmean = rep(pmeans[, 2], 2)))
+}
 
 
 

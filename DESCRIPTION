@@ -12,8 +12,9 @@ SystemRequirements: GNU Make
 Depends: 
     R (>= 3.3.0), 
     Rcpp (>= 0.12.14), 
-    methods
-Imports: rstan (>= 2.17.2), rstantools (>= 1.4.0)
+    methods,
+    survival
+Imports: rstan (>= 2.17.2), rstantools (>= 1.4.0), stats
 LinkingTo: 
     StanHeaders (>= 2.17.2), 
     rstan (>= 2.17.2), 
