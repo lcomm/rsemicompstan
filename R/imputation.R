@@ -155,7 +155,7 @@ impute_obs_by_type <- function(type, frailty, yr, yt, dyr, dyt, xmat,
 
 
 
-#' Impute (if necessary) outcomes for observed arm
+#' Impute (if necessary) uncensored outcomes in observed arm
 #' 
 #' @param type Length-N vector of types
 #' @param frailty Imputed frailty
@@ -169,8 +169,8 @@ impute_obs_by_type <- function(type, frailty, yr, yt, dyr, dyt, xmat,
 #' @param beta P x 3 matrix of regression coefficients
 #' @return N x 4 matrix of uncensored (yr, yt, dyr, dyt)
 #' @export
-impute_obs_by_type <- function(type, frailty, yr, yt, dyr, dyt, xmat, 
-                               alpha, kappa, beta) {
+impute_obs <- function(type, frailty, yr, yt, dyr, dyt, xmat, 
+                       alpha, kappa, beta) {
   
   dat <- matrix(nrow = NROW(xmat), col = 4)
   colnames(dat) <- c("yr_uncens", "yt_uncens", "dyr_uncens", "dyt_uncens")
@@ -191,6 +191,7 @@ impute_obs_by_type <- function(type, frailty, yr, yt, dyr, dyt, xmat,
   
   return(dat)
 }
+
 
 
 
