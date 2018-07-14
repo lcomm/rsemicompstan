@@ -280,9 +280,8 @@ simulate_data <- function(n, alpha, beta, kappa, sigma, p = 3) {
 #' @export
 make_xmat_all_X <- function(dat){
   is_X <- grep("X[:digit:]*", x = colnames(dat), fixed = FALSE)
-  return(model.matrix(~ -1 + ., data = dat[, is_X]))
+  return(as.matrix(model.matrix(~ -1 + ., data = dat[, is_X])))
 }
-
 
 
 #' Make list containing prior means for alpha and kappa
