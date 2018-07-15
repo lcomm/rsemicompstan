@@ -307,7 +307,7 @@ posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat) {
   
   R <- NCOL(aalpha)
   n <- length(z)
-  res <- array(NA, dim = c(n, 10, R))
+  pps <- array(NA, dim = c(n, 10, R))
   for (r in 1:R) {
     alpha <- aalpha[, r]
     kappa <- akappa[, r]
@@ -317,16 +317,92 @@ posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat) {
                                 z = z, xmat = xmat,
                                 alpha = alpha, kappa = kappa, 
                                 beta = beta, sigma = sigma)
-    res[ , , r] <- a
+    pps[ , , r] <- a
   }
-  dimnames(res)[[2]] <- colnames(a)
+  dimnames(pps)[[2]] <- colnames(a)
   
-  return(res)
+  return(pps)
 }
 
 
 
-#TODO(LCOMM): adapt SACE and RM-SACE calculations from semishiny
+#' Calculate principal states at a scalar t
+#' 
+#' @param eval_t Time at which to evaluate survival
+#' @param pp Posterior predictive data set containing yt0_imp and yt1_imp.
+#' (this is one slice of the array from output of 
+#' \code{\link{posterior_predict_sample}}, i.e., \code{res[, , 1]})
+#' @return Character vector of principal states
+#' @export
+make_pstates <- function(eval_t, pp) {
+  pstate <- rep(NA, NROW(pp))
+  pstate[(pp$yt0_imp > eval_t) & (pp$yt1_imp > eval_t)] <- "AA"
+  pstate[(pp$yt0_imp > eval_t) & (pp$yt1_imp < eval_t)] <- "TK"
+  pstate[(pp$yt0_imp < eval_t) & (pp$yt1_imp > eval_t)] <- "TS"
+  pstate[(pp$yt0_imp < eval_t) & (pp$yt1_imp < eval_t)] <- "DD"
+  return(pstate)
+}
+
+
+
+#' Calculate SACE at a certain time point
+#' 
+#' @param eval_t Time at which to evaluate principal state and cumulative 
+#' incidence of the non-terminal event
+#' @param pp Posterior predictive data set containing yt0_imp and yt1_imp.
+#' (this is one slice of the array from output of 
+#' \code{\link{posterior_predict_sample}}, i.e., \code{res[, , 1]})
+#' @return Scalar estimate of SACE at that eval_t
+#' @export
+calculate_tv_sace <- function(eval_t, pp) {
+  pstate <- make_pstates(eval_t, pp)
+  r1_by_t <- r0_by_t <- rep(0, NROW(pp))
+  r0_by_t[pp$yr0 < eval_t] <- 1
+  r1_by_t[pp$yr1 < eval_t] <- 1
+  diff_by_t <- r1_by_t - r0_by_t
+  tv_sace <- mean(diff_by_t[pstate == "AA"])
+  return(tv_sace)
+}
+
+
+
+#' Calculated the restricted mean SACE given a set of posterior predictive draws
+#' 
+#' @param eval_t Time at which to evaluate principal state and accumulated 
+#' benefit with respect to the non-terminal event
+#' @param pp Posterior predictive data set containing yt0_imp and yt1_imp.
+#' (this is one slice of the array from output of 
+#' \code{\link{posterior_predict_sample}}, i.e., \code{res[, , 1]})
+#' @return Scalar estimate of RM-SACE at that eval_t
+#' @export
+calculate_rm_sace <- function(eval_t, pp) {
+
+  pstate <- make_pstates(eval_t, pp)
+  r1_by_t <- r0_by_t <- rep(0, NROW(pp))
+  r0_by_t <- pmin(eval_t, pp$yr0)
+  r1_by_t <- pmin(eval_t, pp$yr1)
+  diff_by_t <- r1_by_t - r0_by_t
+  rm_sace <- mean(diff_by_t[pstate == "AA"])
+  return(rm_sace)
+}
+
+
+
+#' Give reasonable middle-ish times for evaluation of causal effects
+#' 
+#' First time is median non-terminal event time (if no semicompeting risk)
+#' Second time is double that.
+#' 
+#' @return Vector of two times for evaluating causal effects
+#' @export
+get_eval_t <- function() {
+  params <- return_dgp_parameters(scenario = "1")
+  kappa1.true <- params$kappa1.true
+  alpha1.true <- params$alpha1.true
+  t1 <- exp(-log(kappa1.true)/alpha1.true) * log(2)^(1 / alpha1.true)
+  return(c(t1 = t1, t2 = 2 * t1))
+}
+
+
 #TODO(LCOMM): set up simulation replicate functions
 #TODO(LCOMM): unit tests
-
