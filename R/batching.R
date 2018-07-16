@@ -1,3 +1,20 @@
+#' Break up existing chunks of registry ids
+#' 
+#' @param reg batchtools registry object
+#' @param n.chunks Number of chunks to be submitted
+#' @param chunk.size Size of chunks to be submitted
+#' @return Chunked ids to be passed to batchtools::submitJobs
+#' @export
+chunk_registry <- function(reg, n.chunks = NULL, chunk.size = NULL) {
+  ids <- batchtools::getJobTable(reg = reg)
+  ids$chunk = batchtools::chunk(ids$job.id, 
+                                n.chunks = n.chunks, 
+                                chunk.size = chunk.size)
+  return(ids)
+}
+
+
+
 #' Conditionally clear a registry if requested
 #' 
 #' @param clear_existing Whether to clear registry
