@@ -92,6 +92,7 @@ impute_frailty <- function(yr, yt, dyr, dyt, xmat, alpha, kappa, beta, sigma) {
         -pweibull(yr, alpha[1], scale[, 1], lower = FALSE, log = TRUE) + 
         -pweibull(yr, alpha[2], scale[, 2], lower = FALSE, log = TRUE) + 
         -pweibull(soj, alpha[3], scale[, 3], lower = FALSE, log = TRUE)
+  # browser()
   if (anyNA(c(a1, a2))) {
     browser()
   }
@@ -269,7 +270,6 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
                                    kappa = kappa[mis_indices], 
                                    beta = beta)
   }
-  # browser()
   out0 <- out1 <- obs * NA
   out0[z == 0, ] <- obs[z == 0, ]
   out1[z == 0, ] <- mis[z == 0, ]
@@ -335,6 +335,7 @@ posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat) {
 #' @return Character vector of principal states
 #' @export
 make_pstates <- function(eval_t, pp) {
+  pp <- as.data.frame(pp)
   pstate <- rep(NA, NROW(pp))
   pstate[(pp$yt0_imp > eval_t) & (pp$yt1_imp > eval_t)] <- "AA"
   pstate[(pp$yt0_imp > eval_t) & (pp$yt1_imp < eval_t)] <- "TK"
@@ -355,6 +356,8 @@ make_pstates <- function(eval_t, pp) {
 #' @return Scalar estimate of SACE at that eval_t
 #' @export
 calculate_tv_sace <- function(eval_t, pp) {
+  # browser()
+  pp <- as.data.frame(pp)
   pstate <- make_pstates(eval_t, pp)
   r1_by_t <- r0_by_t <- rep(0, NROW(pp))
   r0_by_t[pp$yr0 < eval_t] <- 1
@@ -376,7 +379,7 @@ calculate_tv_sace <- function(eval_t, pp) {
 #' @return Scalar estimate of RM-SACE at that eval_t
 #' @export
 calculate_rm_sace <- function(eval_t, pp) {
-
+  pp <- as.data.frame(pp)
   pstate <- make_pstates(eval_t, pp)
   r1_by_t <- r0_by_t <- rep(0, NROW(pp))
   r0_by_t <- pmin(eval_t, pp$yr0)
@@ -404,5 +407,4 @@ get_eval_t <- function() {
 }
 
 
-#TODO(LCOMM): set up simulation replicate functions
 #TODO(LCOMM): unit tests
