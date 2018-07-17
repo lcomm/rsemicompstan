@@ -48,6 +48,7 @@ process_clear_registry <- function(clear_existing, registry) {
 #' @param time_each Number of minutes for each job
 #' @param memory Memory to allocate at the smallest n
 #' @param max.concurrent.jobs Maximum number of jobs at the same time
+#' @param ... Additional arguments to pass to Stan
 #' @return None; jobs will be submitted and update in registry
 #' @export
 submit_scenario_jobs <- function(registry, scenario, seed, 
@@ -57,7 +58,8 @@ submit_scenario_jobs <- function(registry, scenario, seed,
                                  chunk.size = 1,
                                  time_each = 120,
                                  memory = 1500,
-                                 max.concurrent.jobs = 4000) {
+                                 max.concurrent.jobs = 4000,
+                                 ...) {
   
   process_clear_registry(clear_existing, registry)
   
@@ -70,7 +72,7 @@ submit_scenario_jobs <- function(registry, scenario, seed,
                          n = n)
   batchtools::batchMap(fun = run_scr_replicate, 
                        args = args, 
-                       more.args = list(iter = iter, chains = chains), 
+                       more.args = list(iter = iter, chains = chains, ...), 
                        reg = registry)
   
   walltime <- 60 * time_each * chunk.size

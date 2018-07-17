@@ -3,6 +3,7 @@
 export(assign_Z)
 export(calculate_rm_sace)
 export(calculate_tv_sace)
+export(chunk_registry)
 export(convert_science_to_obs)
 export(expand_to_full)
 export(get_eval_t)

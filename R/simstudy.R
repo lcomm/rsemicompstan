@@ -122,9 +122,10 @@ simulate_scenario <- function(n = 5000, seed = 123, scenario) {
 #' @param scenario Scenario; see \code{\link{return_dgp_parameters}}
 #' @param iter Number of MCMC iterations
 #' @param chains Number of MCMC chains
+#' @param ... Parameters to pass to Stan via \code{\link{scr_gamma_frailty_stan}}
 #' @return TODO(LCOMM): Figure out return
 #' @export
-run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4) {
+run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4, ...) {
   dat <- simulate_scenario(n = n, seed = seed, scenario = scenario)  
   xmat <- make_xmat_all_X(dat)
   stan_fit <- scr_gamma_frailty_stan(x = xmat, z = dat$z, 
@@ -132,7 +133,8 @@ run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4) {
                                      dyr = dat$delta1, dyt = dat$delta2,
                                      use_priors = TRUE, 
                                      sigma_pa = 2, sigma_pb = 11,
-                                     iter = iter, chains = chains)
+                                     iter = iter, chains = chains,
+                                     ...)
   return(list(dat = dat, xmat = xmat, stan_fit = stan_fit))
 }
 
