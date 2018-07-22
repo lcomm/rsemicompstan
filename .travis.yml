@@ -7,6 +7,10 @@ latex: true
 r_build_args: '--no-build-vignettes'
 r_check_args: '--ignore-vignettes --no-examples'
 
+r_binary_packages:
+  - data.table
+  - SemiCompRisks
+
 r_github_packages:
   - jimhester/covr
 
