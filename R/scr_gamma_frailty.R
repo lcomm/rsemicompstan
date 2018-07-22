@@ -3,13 +3,16 @@
 #' @param x N x P design matrix, no intercept
 #' @param z Length-N vector of binary treatment indicators
 #' @param yr Length-N vector of non-terminal event times
-#' @param yr Length-N vector of terminal event times
+#' @param yt Length-N vector of terminal event times
 #' @param dyr Length-N vector binary indicators for having observed the 
 #' non-terminal event
-#' @param use_priors Whether to use weakly informative/data-driven priors
 #' @param dyt Length-N vector binary indicators for having observed the 
 #' terminal event
-#' @param v_precision Prior variance for precision parameter. Default is 1 / 0.7
+#' @param use_priors Whether to use weakly informative/data-driven priors
+#' @param sigma_pa Hyperparameter alpha for inverse gamma prior on sigma
+#' @param sigma_pb Hyperparameter beta for inverse gamma prior on sigma. Prior 
+#' mean for sigma is beta/(alpha - 1) for alpha > 1 and prior mode is 
+#' beta/(alpha + 1).
 #' @param ... Additional parameters to pass to `rstan::sampling`
 #' @return an object of class `stanfit` returned by `rstan::sampling`
 #' @examples 

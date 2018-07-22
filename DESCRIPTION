@@ -12,9 +12,8 @@ SystemRequirements: GNU Make
 Depends: 
     R (>= 3.3.0), 
     Rcpp (>= 0.12.14), 
-    methods,
-    survival
-Imports: rstan (>= 2.17.2), rstantools (>= 1.4.0), stats
+Imports: rstan (>= 2.17.2), rstantools (>= 1.4.0), methods,
+    stats, utils, survival, SemiCompRisks, batchtools, data.table
 LinkingTo: 
     StanHeaders (>= 2.17.2), 
     rstan (>= 2.17.2), 
@@ -22,10 +21,11 @@ LinkingTo:
     Rcpp (>= 0.12.14), 
     RcppEigen (>= 0.3.3.3.1)
 Suggests:
-    matrixcalc,
     mvtnorm,
     testthat,
     knitr, 
     rmarkdown
 RoxygenNote: 6.0.1
 VignetteBuilder: knitr
+Encoding: UTF-8
+

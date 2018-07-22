@@ -89,9 +89,9 @@ impute_frailty <- function(yr, yt, dyr, dyt, xmat, alpha, kappa, beta, sigma) {
                            frailty = 1)
   a1 <- 1 / sigma + dyr + dyt
   a2 <- 1 / sigma + 
-        -pweibull(yr, alpha[1], scale[, 1], lower = FALSE, log = TRUE) + 
-        -pweibull(yr, alpha[2], scale[, 2], lower = FALSE, log = TRUE) + 
-        -pweibull(soj, alpha[3], scale[, 3], lower = FALSE, log = TRUE)
+        -pweibull(yr, alpha[1], scale[, 1], lower.tail = FALSE, log.p = TRUE) + 
+        -pweibull(yr, alpha[2], scale[, 2], lower.tail = FALSE, log.p = TRUE) + 
+        -pweibull(soj, alpha[3], scale[, 3], lower.tail = FALSE, log.p = TRUE)
   # browser()
   if (anyNA(c(a1, a2))) {
     browser()
@@ -228,10 +228,12 @@ impute_mis <- function(frailty, xmat, alpha, kappa, beta) {
 #' @param yt Last observed terminal time
 #' @param dyr Non-terminal event observation indicator
 #' @param dyt Terminal event observation indicator
+#' @param z Assigned treatment vector
 #' @param xmat N x P design matrix
 #' @param alpha Length-6 vector of Weibull shapes
 #' @param kappa Length-6 vector of Weibull baseline hazards
 #' @param beta P x 3 matrix of regression coefficients
+#' @param sigma Scalar frailty variance
 #' @return N-row data frame of uncensored (z, frailty, yr, yt, dyr, dyt)
 #' @export 
 posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
@@ -291,10 +293,8 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
 #' @param yt Last observed terminal time
 #' @param dyr Non-terminal event observation indicator
 #' @param dyt Terminal event observation indicator
+#' @param z Assigned treatment vector
 #' @param xmat N x P design matrix
-#' @param alpha Length-6 vector of Weibull shapes
-#' @param kappa Length-6 vector of Weibull baseline hazards
-#' @param beta P x 3 matrix of regression coefficients
 #' @return N-row data frame of uncensored (z, yr, yt, dyr, dyt)
 #' @export 
 posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat) {
