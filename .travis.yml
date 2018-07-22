@@ -7,6 +7,11 @@ latex: true
 r_build_args: '--no-build-vignettes'
 r_check_args: '--ignore-vignettes --no-examples'
 
+addons:
+  apt:
+    packages:
+    - libcurl4-openssl-dev
+    
 r_binary_packages:
   - data.table
   - SemiCompRisks
