@@ -1,5 +1,6 @@
 language: r
-sudo: false
+sudo: true
+dist: trusty
 r: devel
 cache: packages
 
@@ -7,11 +8,6 @@ latex: true
 r_build_args: '--no-build-vignettes'
 r_check_args: '--ignore-vignettes --no-examples'
 
-addons:
-  apt:
-    packages:
-    - libcurl4-openssl-dev
-    
 r_binary_packages:
   - data.table
   - SemiCompRisks
@@ -31,6 +27,7 @@ before_install:
   - if [[ $CXX = "clang++" ]] ;  then export CLANG_EXTRA_ARG=" -Qunused-arguments -fcolor-diagnostics " ; fi
   - sed -i.bak "s/ g++/ ${CXX}${CLANG_EXTRA_ARG}/" ~/.R/Makevars
   - sed -i.bak "s/O[0-3]/O$CXX_OLEVEL/" ~/.R/Makevars
+  - sudo apt-get install libgsl0ldbl
 
 script: 
   - |
