@@ -126,12 +126,17 @@ simulate_scenario <- function(n = 5000, seed = 123, scenario) {
 #' @param sigma_pb Hyperparameter beta for inverse gamma prior on sigma. Prior 
 #' mean for sigma is beta/(alpha - 1) for alpha > 1 and prior mode is 
 #' beta/(alpha + 1).
+#' @param init Chain initialization type ("0" or "random")
+#' @param init_r Range for random starting values. Default is 0.5 for (-0.5, 0.5) 
+#' initialization instead the normal (-2, 2) for fewer convergence issues.
 #' @param ... Parameters to pass to Stan via \code{\link{scr_gamma_frailty_stan}}
 #' @return Named list of simulated data (dat), common design matrix (xmat), and 
 #' stan fit (stan_fit) objects
 #' @export
 run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4, 
-                              sigma_pa = 11, sigma_pb = 2, ...) {
+                              sigma_pa = 11, sigma_pb = 2, 
+                              init = "random", init_r = 0.5, 
+                              ...) {
   dat <- simulate_scenario(n = n, seed = seed, scenario = scenario)  
   xmat <- make_xmat_all_X(dat)
   stan_fit <- scr_gamma_frailty_stan(x = xmat, z = dat$z, 

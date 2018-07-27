@@ -113,7 +113,8 @@ impute_frailty <- function(yr, yt, dyr, dyt, xmat, alpha, kappa, beta, sigma) {
 rtweibull <- function(shape, scale, lb) {
   p <- pweibull(lb, shape = shape, scale = scale, lower.tail = TRUE)
   u <- runif(n = length(p), min = p, max = 1)
-  return(qgamma(p = p, shape = shape, scale = scale))
+  rv <- qweibull(p = u, shape = shape, scale = scale)
+  return(rv)
 }
 
 
@@ -234,10 +235,13 @@ impute_mis <- function(frailty, xmat, alpha, kappa, beta) {
 #' @param kappa Length-6 vector of Weibull baseline hazards
 #' @param beta P x 3 matrix of regression coefficients
 #' @param sigma Scalar frailty variance
+#' @param reference_frailty Whether to impute that all frailties are exactly 
+#' one. Useful for ranking covariate patterns by risk. Defaults to FALSE.
 #' @return N-row data frame of uncensored (z, frailty, yr, yt, dyr, dyt)
 #' @export 
 posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
-                                   alpha, kappa, beta, sigma) {
+                                   alpha, kappa, beta, sigma,
+                                   reference_frailty = FALSE) {
   
   n  <- length(z)
   frailty <- rep(NA, n)
@@ -252,13 +256,16 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
       obs_indices <- 4:6
       mis_indices <- 1:3
     }
-    
-    frailty[z_which] <- impute_frailty(yr = yr[z_which], yt = yt[z_which], 
-                                       dyr = dyr[z_which], dyt = dyt[z_which], 
-                                       xmat = as.matrix(xmat[z_which, ]), 
-                                       alpha = alpha[obs_indices], 
-                                       kappa = kappa[obs_indices], 
-                                       beta = beta, sigma = sigma)
+    if (!reference_frailty) {
+      frailty[z_which] <- impute_frailty(yr = yr[z_which], yt = yt[z_which], 
+                                         dyr = dyr[z_which], dyt = dyt[z_which], 
+                                         xmat = as.matrix(xmat[z_which, ]), 
+                                         alpha = alpha[obs_indices], 
+                                         kappa = kappa[obs_indices], 
+                                         beta = beta, sigma = sigma)
+    } else {
+      frailty[z_which] <- rep(1, length(z_which))  
+    }
     obs[z_which, ]   <- impute_obs(frailty = frailty[z_which], 
                                    yr = yr[z_which], yt = yt[z_which], 
                                    dyr = dyr[z_which], dyt = dyt[z_which], 
@@ -295,13 +302,18 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
 #' @param dyt Terminal event observation indicator
 #' @param z Assigned treatment vector
 #' @param xmat N x P design matrix
+#' @param reference_frailty Whether to impute that all frailties are exactly 
+#' one. Useful for ranking covariate patterns by risk. Defaults to FALSE.
 #' @return N-row data frame of uncensored (z, yr, yt, dyr, dyt)
 #' @export 
-posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat) {
+posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat,
+                                     reference_frailty = FALSE) {
   
   aalpha <- t(as.array(extract(stan_fit, par = "alpha")[["alpha"]]))
   akappa <- t(as.array(extract(stan_fit, par = "kappa")[["kappa"]]))
-  asigma <- as.array(extract(stan_fit, par = "sigma")[["sigma"]])
+  if (!reference_frailty) {
+    asigma <- as.array(extract(stan_fit, par = "sigma")[["sigma"]])  
+  }
   abeta <- aperm(as.array(extract(stan_fit, par = "beta")[["beta"]]), 
                  c(2, 3, 1))
   
@@ -311,12 +323,17 @@ posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat) {
   for (r in 1:R) {
     alpha <- aalpha[, r]
     kappa <- akappa[, r]
-    sigma <- asigma[r]
+    if (!reference_frailty) {
+      sigma <- asigma[r]
+    } else {
+      sigma = 0
+    }
     beta <- matrix(abeta[ , , r], ncol = 3)
     a <- posterior_predict_draw(yr = yr, yt = yt, dyr = dyr, dyt = dyt, 
                                 z = z, xmat = xmat,
                                 alpha = alpha, kappa = kappa, 
-                                beta = beta, sigma = sigma)
+                                beta = beta, sigma = sigma,
+                                reference_frailty = reference_frailty)
     pps[ , , r] <- a
   }
   dimnames(pps)[[2]] <- colnames(a)
@@ -404,6 +421,35 @@ get_eval_t <- function() {
   alpha1.true <- params$alpha1.true
   t1 <- exp(-log(kappa1.true)/alpha1.true) * log(2)^(1 / alpha1.true)
   return(c(t1 = t1, t2 = 2 * t1))
+}
+
+
+
+#' Make covariate risk scores for the terminal event 
+#' 
+#' Create risk scores for each covariate pattern by calculating the the posterior
+#' probability of the individual being always-alive at eval_t, ignoring frailties. 
+#' (The exact values will be different for different eval_t, but the ordering will 
+#' not.) Individuals with the same covariate pattern will have the same risk score.
+#' 
+#' @param stan_fit Stan fit object
+#' @param yr Last observed non-terminal time
+#' @param yt Last observed terminal time
+#' @param dyr Non-terminal event observation indicator
+#' @param dyt Terminal event observation indicator
+#' @param z Assigned treatment vector
+#' @param xmat N x P design matrix
+#' @param eval_t Time at which to evaluate P(always-alive)
+#' @return Length-N vector of covariate risk scores
+#' @export
+make_terminal_risk_scores <- function(stan_fit, yr, yt, dyr, dyt, z, xmat, 
+                                      eval_t = get_eval_t()[1]) {
+  pp_ref <- posterior_predict_sample(stan_fit, yr, yt, dyr, dyt, z, xmat,
+                                     reference_frailty = TRUE)
+  is_aa_t1_ref <- (apply(X = pp_ref, MARGIN = 3, FUN = make_pstates, 
+                         eval_t = eval_t) == "AA")
+  risk_score <- rowMeans(is_aa_t1_ref)
+  return(risk_score)
 }
 
 
