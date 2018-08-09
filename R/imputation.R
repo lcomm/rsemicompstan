@@ -443,7 +443,7 @@ get_eval_t <- function() {
 #' @return Length-N vector of covariate risk scores
 #' @export
 make_terminal_risk_scores <- function(stan_fit, yr, yt, dyr, dyt, z, xmat, 
-                                      eval_t = get_eval_t()[1]) {
+                                      eval_t) {
   pp_ref <- posterior_predict_sample(stan_fit, yr, yt, dyr, dyt, z, xmat,
                                      reference_frailty = TRUE)
   is_aa_t1_ref <- (apply(X = pp_ref, MARGIN = 3, FUN = make_pstates, 

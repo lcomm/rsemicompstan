@@ -11,10 +11,16 @@
 #' @import stats
 #' @import methods
 #' @import batchtools
+#' @import ggplot2
 #' @importFrom data.table rbindlist CJ
 #' @importFrom SemiCompRisks simID
 #' @importFrom utils read.csv
+#' @importFrom gridExtra grid.arrange
+#' @importFrom RColorBrewer brewer.pal
+#' @importFrom reshape2 melt
 #' @importFrom survival survreg
+#' @importFrom ggpubr ggarrange
+#' @importFrom ggridges geom_density_ridges theme_ridges
 #' 
 #' @description Maybe some day
 NULL
