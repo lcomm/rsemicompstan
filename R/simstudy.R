@@ -5,9 +5,11 @@
 #' people faster so they do not have non-terminal event
 #' 2 = stratum are SHARP: covariates are highly predictive of survival
 #' 3 = stratum are BLUNT: covariates do almost nothing
-#' 4 = DIFFERENTIAL frailty effects: frailty is much less predictive of 
+#' 4 = stratum are BLUNT and frailties are strong: covariates do almost nothing
+#' but the frailty variance is large
+#' 5 = DIFFERENTIAL frailty effects: frailty is much less predictive of 
 #' non-terminal event than terminal event (raised to a power < 1)
-#' 5 = frailty is LOGNORMAL: misspecified frailty distribution
+#' 6 = frailty is LOGNORMAL: misspecified frailty distribution
 #' @return Named list of data generation parameters
 #' @export
 return_dgp_parameters <- function(scenario) {
@@ -42,7 +44,17 @@ return_dgp_parameters <- function(scenario) {
                          kappa2.true = 0.002, 
                          kappa3.true = 0.004,
                          theta.true = 0.2),
-              "4" = list(beta1.true = c(-0.5, 0.1, 0.1, 0.1, 0.5),
+              "4" = list(beta1.true = c(-0.5, 0.01, 0.01, 0.01),
+                         beta2.true = c(-0.7, 0.01, 0.01, 0.01),
+                         beta3.true = c(-0.5, 0.01, 0.01, 0.01),
+                         alpha1.true = 1,
+                         alpha2.true = 0.95,
+                         alpha3.true = 1,
+                         kappa1.true = 0.003,
+                         kappa2.true = 0.002, 
+                         kappa3.true = 0.004,
+                         theta.true = 1),
+              "5" = list(beta1.true = c(-0.5, 0.1, 0.1, 0.1, 0.5),
                          beta2.true = c(-0.7, 0.1, 0.1, 0.1, 1),
                          beta3.true = c(-0.5, 0.1, 0.1, 0.1, 1),
                          alpha1.true = 1,
@@ -52,7 +64,7 @@ return_dgp_parameters <- function(scenario) {
                          kappa2.true = 0.002, 
                          kappa3.true = 0.004,
                          theta.true = 0),
-              "5" = list(beta1.true = c(-0.5, 0.1, 0.1, 0.1, 1),
+              "6" = list(beta1.true = c(-0.5, 0.1, 0.1, 0.1, 1),
                          beta2.true = c(-0.7, 0.1, 0.1, 0.1, 1),
                          beta3.true = c(-0.5, 0.1, 0.1, 0.1, 1),
                          alpha1.true = 1,
