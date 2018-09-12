@@ -81,7 +81,7 @@ model {
     // for large and equal (sigma_pa, sigma_pb), variance is roughly 1 / sigma_pa
     sigma ~ inv_gamma(sigma_pa, sigma_pb);
   }
-  
+    
   // likelihood
   for (n in 1:N) {
     i = start_i[n];

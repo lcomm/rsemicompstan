@@ -284,6 +284,7 @@ make_xmat_all_X <- function(dat){
 }
 
 
+
 #' Make list containing prior means for alpha and kappa
 #' 
 #' Fits frequentist intercept-only models to center log-alpha and log-kappa

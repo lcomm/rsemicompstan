@@ -56,7 +56,7 @@ scr_gamma_frailty_stan <- function(x, z, yr, yt, dyr, dyt, use_priors = TRUE,
                                      log_alpha_pmean = pm$log_alpha_pmean,
                                      log_kappa_pmean = pm$log_kappa_pmean,
                                      sigma_pa = sigma_pa,
-                                     sigma_pb = sigma_pb), 
+                                     sigma_pb = sigma_pb)
                          ...)
   return(out)
   
