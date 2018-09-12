@@ -3,7 +3,7 @@
 #' @param x N x P design matrix, no intercept
 #' @param z Length-N vector of binary treatment indicators
 #' @param yr Length-N vector of non-terminal event times
-#' @param yr Length-N vector of terminal event times
+#' @param yt Length-N vector of terminal event times
 #' @param dyr Length-N vector binary indicators for having observed the 
 #' non-terminal event
 #' @param use_priors Whether to use weakly informative/data-driven priors

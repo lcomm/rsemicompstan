@@ -1,4 +1,4 @@
-#' Assign a binary treatment Z 
+#' Assign a binary treatment Z
 #' 
 #' @param n Number of observations to randomize
 #' @param treated_fraction Fraction of sample to have = 1
@@ -42,7 +42,7 @@ simulate_covariates <- function(n = 100, p = 3) {
 
 #' Function to generate frailties
 #' 
-#' Draw n i.i.d. frailties from a Gamma($\sigma^{-1}$, $\sigma^{-1}$)\
+#' Draw n i.i.d. frailties from a Gamma(1 / sigma, 1 / sigma)
 #'
 #' @param n Number of observations
 #' @param sigma Variance for gamma frailty
@@ -68,13 +68,13 @@ simulate_frailty <- function(n, sigma = 1) {
 #' @export
 get_prior_mean_from_mle <- function(time, event = NULL) {
   
-  require("survival")
-  
   if (is.null(event)) {
-    fit <- survreg(Surv(time = time) ~ 1, dist = "weibull")
+    fit <- survival::survreg(survival::Surv(time = time) ~ 1, 
+                             dist = "weibull")
   } else {
     stopifnot(is.numeric(event), all(event %in% c(0, 1)))
-    fit <- survreg(Surv(time = time, event = event) ~ 1, dist = "weibull")
+    fit <- survival::survreg(survival::Surv(time = time, event = event) ~ 1, 
+                             dist = "weibull")
   }
   alpha <- 1 / fit$scale
   log_alpha <- log(alpha)
@@ -280,7 +280,7 @@ simulate_data <- function(n, alpha, beta, kappa, sigma, p = 3) {
 #' @export
 make_xmat_all_X <- function(dat){
   is_X <- grep("X[:digit:]*", x = colnames(dat), fixed = FALSE)
-  return(model.matrix(~ -1 + ., data = dat[, is_X]))
+  return(as.matrix(model.matrix(~ -1 + ., data = dat[, is_X])))
 }
 
 

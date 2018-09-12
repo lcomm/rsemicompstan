@@ -9,7 +9,6 @@ all_elements_equal <- function(x, tol = .Machine$double.eps^0.5) {
 
 
 context("Data simulation")
-
 test_that("Simulated gamma frailties have variance sigma", {
   
   set.seed(123)

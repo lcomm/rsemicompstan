@@ -14,13 +14,15 @@ data {
   int<lower=0,upper=1> use_priors;
   vector[6] log_alpha_pmean;
   vector[6] log_kappa_pmean;
-  real<lower=0> v_precision;
+  real<lower=0> sigma_pa;
+  real<lower=0> sigma_pb;
 }
 
 transformed data {
   vector[N] type;
   int start_i[N];
-  real<lower=0> inv_v = 1 / v_precision;
+  real log_kappa_psd = log(100) / 2;
+  real log_alpha_psd = 2;
   
   for (n in 1:N) {
     start_i[n] = (z[n] == 1) ? 4 : 1;
@@ -42,20 +44,22 @@ parameters {
   
   // shape parameters (the one in exponent of time)
   // alpha > 1 -> hazard increases over time, more clumping
-  vector[6] log_alpha; 
+  vector[6] log_alpha_raw; 
   
   // scale parameters (without shift to make expected event time near 1)
   // bigger kappa -> faster event occurrence
-  vector[6] log_kappa;
+  vector[6] log_kappa_raw;
   
-  // precision of frailties
-  real<lower=0> inv_sigma;
+  // variance of frailties
+  real<lower=0> sigma;
 }
 
 transformed parameters {
+  vector[6] log_kappa = log_kappa_pmean + log_kappa_raw * log_kappa_psd;
+  vector[6] log_alpha = log_alpha_pmean + log_alpha_raw * log_alpha_psd;
   vector[6] kappa = exp(log_kappa);
   vector[6] alpha = exp(log_alpha);
-  real sigma = 1 / inv_sigma;
+  real inv_sigma = 1 / sigma;
 }
 
 model {
@@ -66,15 +70,18 @@ model {
   real lp2;
   real lp3;
   
-  // TODO(LCOMM): add other priors
   if (use_priors == 1) {
     to_vector(beta) ~ normal(0, 2.5);
-    log_alpha ~ normal(log_alpha_pmean, 2);
-    log_kappa ~ normal(log_kappa_pmean, log(100)/2);
-    inv_sigma ~ gamma(inv_v, inv_v);
+    log_alpha_raw ~ normal(0, 1);
+    log_kappa_raw ~ normal(0, 1);
+    // TODO(LCOMM): convince myself once and for all that following line
+    // is correct...
+    // prior mean for sigma is sigma_pb / (sigma_pa - 1) for sigma_pa > 1
+    // prior mode for sigma is sigma_pb / (sigma_pa + 1) for sigma_pa > 1
+    // for large and equal (sigma_pa, sigma_pb), variance is roughly 1 / sigma_pa
+    sigma ~ inv_gamma(sigma_pa, sigma_pb);
   }
-  
-  
+    
   // likelihood
   for (n in 1:N) {
     i = start_i[n];
