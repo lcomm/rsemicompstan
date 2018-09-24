@@ -392,7 +392,6 @@ make_pstates <- function(eval_t, pp) {
 #' @return Scalar estimate of SACE at that eval_t
 #' @export
 calculate_tv_sace <- function(eval_t, pp) {
-  # browser()
   pp <- as.data.frame(pp)
   pstate <- make_pstates(eval_t, pp)
   r1_by_t <- r0_by_t <- rep(0, NROW(pp))
@@ -402,6 +401,19 @@ calculate_tv_sace <- function(eval_t, pp) {
   tv_sace <- mean(diff_by_t[pstate == "AA"])
   return(tv_sace)
 }
+
+
+
+#' Calculation of TV-SACE for multiple time points from one set of P.O.
+#' 
+#' Vectorized version of \code{\link{calculate_tv_sace}}
+#' @param eval_t Length-T vector of times at which to evaluate principal state 
+#' and cumulative incidence of the non-terminal event
+#' @param pp Posterior predictive data set containing yt0_imp and yt1_imp
+#' @return Length-T vector of TV-SACE for each eval_t
+#' @export
+v_calculate_tv_sace <- Vectorize(FUN = calculate_tv_sace, 
+                                 vectorize.args = "eval_t")
 
 
 
@@ -424,6 +436,19 @@ calculate_rm_sace <- function(eval_t, pp) {
   rm_sace <- mean(diff_by_t[pstate == "AA"])
   return(rm_sace)
 }
+
+
+
+#' Calculation of RM-SACE for multiple time points from one set of P.O.
+#' 
+#' Vectorized version of \code{\link{calculate_rm_sace}}
+#' @param eval_t Length-T vector of times at which to evaluate principal state 
+#' and cumulative incidence of the non-terminal event
+#' @param pp Posterior predictive data set containing yt0_imp and yt1_imp
+#' @return Length-T vector of RM-SACE for each eval_t
+#' @export
+v_calculate_rm_sace <- Vectorize(FUN = calculate_rm_sace, 
+                                 vectorize.args = "eval_t")
 
 
 

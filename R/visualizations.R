@@ -5,23 +5,24 @@
 #' all covariates are centered.
 #' 
 #' @param scenario Data generation scenario
+#' @param P Number of covariates for DGP. Defaults to 4.
 #' @param max_t Maximum time (used only for upper bounding rootfinding)
 #' @return Scalar time at which to evaluate the probability of being an 
 #' always-survivor
 #' @export
-get_color_t <- function(scenario, max_t = get_eval_t()[2]) {
+get_color_t <- function(scenario, P = 4, max_t = get_eval_t()[2]) {
   
   f_median <- function(x, a1, b1, a2, b2) {
     log(0.5) + (x / b1)^a1 + (x / b2)^a2
   }
   
-  params <- return_dgp_parameters(scenario)
-  a1 <- params$alpha1.true
-  b1 <- make_scale(lp = log(params$kappa1.true), 
-                   alpha = params$alpha1.true)
-  a2 <- params$alpha2.true
-  b2 <- make_scale(lp = log(params$kappa2.true), 
-                   alpha = params$alpha2.true)
+  params <- return_dgp_parameters(scenario, P = P)
+  a1 <- params$alpha1
+  b1 <- make_scale(lp = log(params$control$kappa1), 
+                   alpha = params$control$alpha1)
+  a2 <- params$control$alpha2
+  b2 <- make_scale(lp = log(params$control$kappa2), 
+                   alpha = params$control$alpha2)
   
   color_t <- uniroot(f_median, lower = 0, upper = max_t * 2, 
                      tol = 1e-10, 
@@ -65,7 +66,7 @@ prepare_graph_data <- function(pp, max_t, length_out = 10) {
                                    frac_aa = NA, tv_sace = NA, rm_sace = NA))
   
   for (r in 1:R) {
-    pp_mcmc <- as.data.frame(pp[,, r])
+    pp_mcmc <- as.data.frame(pp[, , r])
     for (eval_t in xt) {
       res[(res$r == r) & (res$eval_t == eval_t), "frac_aa"] <- 
         calculate_frac_aa(eval_t = eval_t, pp = pp_mcmc)
@@ -243,10 +244,10 @@ make_frailty_ridgeplot <- function(res, risk_t = get_eval_t()[1],
     
     # Extract components of results object
     stan_fit <- res$stan_fit
-    yr <- res$dat$y1
-    yt <- res$dat$y2
-    dyr <- res$dat$delta1
-    dyt <- res$dat$delta2
+    yr <- res$dat$yr
+    yt <- res$dat$yt
+    dyr <- res$dat$dyr
+    dyt <- res$dat$dyt
     z <- res$dat$z
     xmat <- res$xmat
     
