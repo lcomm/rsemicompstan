@@ -235,16 +235,24 @@ impute_mis <- function(frailty, xmat, alpha, kappa, beta) {
 #' @param kappa Length-6 vector of Weibull baseline hazards
 #' @param beta P x 3 matrix of regression coefficients
 #' @param sigma Scalar frailty variance
-#' @param reference_frailty Whether to impute that all frailties are exactly 
-#' one. Useful for ranking covariate patterns by risk. Defaults to FALSE.
+#' @param frailty_type Whether to impute that all frailties are exactly 
+#' one ("reference"), impute from data ("impute") or use provided frailties 
+#' ("given"). Reference is useful for ranking covariate patterns by risk. 
+#' Defaults to "impute".
+#' @param frailty Provided length-N frailty vector if frailty_type = "given"
 #' @return N-row data frame of uncensored (z, frailty, yr, yt, dyr, dyt)
 #' @export 
 posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
                                    alpha, kappa, beta, sigma,
-                                   reference_frailty = FALSE) {
-  
+                                   frailty_type = "impute", 
+                                   frailty = NULL) {
+  if (frailty_type == "given" && is.null(frailty)) {
+    stop("Need to provide vector of frailties if frailty_type == given!")
+  }
   n  <- length(z)
-  frailty <- rep(NA, n)
+  if (frailty_type != "given") {
+    frailty <- rep(NA, n)
+  }
   xmat <- as.matrix(xmat)
   obs <- mis <- matrix(NA, nrow = n, ncol = 4)
   for (zval in 0:1) {
@@ -256,14 +264,14 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
       obs_indices <- 4:6
       mis_indices <- 1:3
     }
-    if (!reference_frailty) {
+    if (frailty_type == "impute") {
       frailty[z_which] <- impute_frailty(yr = yr[z_which], yt = yt[z_which], 
                                          dyr = dyr[z_which], dyt = dyt[z_which], 
                                          xmat = as.matrix(xmat[z_which, ]), 
                                          alpha = alpha[obs_indices], 
                                          kappa = kappa[obs_indices], 
                                          beta = beta, sigma = sigma)
-    } else {
+    } else if (frailty_type == "reference") {
       frailty[z_which] <- rep(1, length(z_which))  
     }
     obs[z_which, ]   <- impute_obs(frailty = frailty[z_which], 
@@ -302,20 +310,25 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
 #' @param dyt Terminal event observation indicator
 #' @param z Assigned treatment vector
 #' @param xmat N x P design matrix
-#' @param reference_frailty Whether to impute that all frailties are exactly 
-#' one. Useful for ranking covariate patterns by risk. Defaults to FALSE.
+#' @param frailty_type Whether to impute that all frailties are exactly 
+#' one ("reference"), impute from data ("impute") or use provided frailties 
+#' ("given"). Reference is useful for ranking covariate patterns by risk. 
+#' Defaults to "impute".
+#' @param frailty Provided length-N frailty vector or N x R matrix if 
+#' frailty_type = "given"
 #' @return N-row data frame of uncensored (z, yr, yt, dyr, dyt)
 #' @export 
 posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat,
-                                     reference_frailty = FALSE) {
+                                     frailty_type = "impute", frailty = NULL) {
   
   aalpha <- t(as.array(extract(stan_fit, par = "alpha")[["alpha"]]))
   akappa <- t(as.array(extract(stan_fit, par = "kappa")[["kappa"]]))
-  if (!reference_frailty) {
+  if (frailty_type != "reference") {
     asigma <- as.array(extract(stan_fit, par = "sigma")[["sigma"]])  
   }
   abeta <- aperm(as.array(extract(stan_fit, par = "beta")[["beta"]]), 
                  c(2, 3, 1))
+  afrailty <- frailty
   
   R <- NCOL(aalpha)
   n <- length(z)
@@ -323,17 +336,23 @@ posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat,
   for (r in 1:R) {
     alpha <- aalpha[, r]
     kappa <- akappa[, r]
-    if (!reference_frailty) {
-      sigma <- asigma[r]
-    } else {
+    if (frailty_type == "reference") {
       sigma = 0
+    } else {
+      sigma <- asigma[r]
+    } 
+    
+    if (!is.null(afrailty) && NROW(afrailty) == n && NCOL(afrailty) == R) {
+      frailty <- afrailty[, r]
     }
+    
     beta <- matrix(abeta[ , , r], ncol = 3)
     a <- posterior_predict_draw(yr = yr, yt = yt, dyr = dyr, dyt = dyt, 
                                 z = z, xmat = xmat,
                                 alpha = alpha, kappa = kappa, 
                                 beta = beta, sigma = sigma,
-                                reference_frailty = reference_frailty)
+                                frailty_type = frailty_type,
+                                frailty = frailty)
     pps[ , , r] <- a
   }
   dimnames(pps)[[2]] <- colnames(a)
@@ -410,16 +429,16 @@ calculate_rm_sace <- function(eval_t, pp) {
 
 #' Give reasonable middle-ish times for evaluation of causal effects
 #' 
-#' First time is median non-terminal event time (if no semicompeting risk)
+#' First time is median non-terminal event time in control (if no semicompeting risk)
 #' Second time is double that.
 #' 
 #' @return Vector of two times for evaluating causal effects
 #' @export
 get_eval_t <- function() {
   params <- return_dgp_parameters(scenario = "1")
-  kappa1.true <- params$kappa1.true
-  alpha1.true <- params$alpha1.true
-  t1 <- exp(-log(kappa1.true)/alpha1.true) * log(2)^(1 / alpha1.true)
+  kappa1 <- params$control$kappa1
+  alpha1 <- params$control$alpha1
+  t1 <- exp(-log(kappa1)/alpha1) * log(2)^(1 / alpha1)
   return(c(t1 = t1, t2 = 2 * t1))
 }
 

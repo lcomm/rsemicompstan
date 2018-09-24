@@ -1,79 +1,61 @@
 #' Return data generation parameters for different scenarios
 #' 
 #' @param scenario
-#' 1 = ignoring death is MISLEADING: treatment has no effect except to kill 
-#' people faster so they do not have non-terminal event
-#' 2 = stratum are SHARP: covariates are highly predictive of survival
-#' 3 = stratum are BLUNT: covariates do almost nothing
-#' 4 = stratum are BLUNT and frailties are strong: covariates do almost nothing
-#' but the frailty variance is large
-#' 5 = DIFFERENTIAL frailty effects: frailty is much less predictive of 
-#' non-terminal event than terminal event (raised to a power < 1)
-#' 6 = frailty is LOGNORMAL: misspecified frailty distribution
+#' 1 = REFERENCE scenario: moderate sharpness, moderate frailty variance
+#' 2 = stratum are SHARP: covariates are highly predictive of survival, 
+#' moderate frailty variance
+#' 3 = stratum are BLUNT: covariates do nothing, moderate frailty variance
+#' 4 = frailty STRONG: covariates moderately predictive
+#' 5 = frailty (virtually) NONEXISTENT: covariates moderately predictive
+#' 6 = non-terminal treatment hazard ratio CHANGES: dramatically different shape
+#' parameters for non-terminal event hazard, exact same terminal event 
+#' processes, moderate frailty variance
+#' 7 = non-terminal treatment hazard ratio CONSTANT: exact same non-terminal 
+#' event processes, but systematically higher terminal event hazards in controls
+#' @param P Number of baseline covariates
 #' @return Named list of data generation parameters
 #' @export
-return_dgp_parameters <- function(scenario) {
+return_dgp_parameters <- function(scenario, P = 4) {
+  
+  # Set reference rates
+  sgn   <- (-1)^(1:P)
+  blunt <- sgn * 0
+  mod   <- sgn * (1.2)^(1 / (qnorm(0.9) - qnorm(0.1)))
+  sharp <- sgn * (2.5)^(1 / (qnorm(0.9) - qnorm(0.1)))
+  mod_sigma <- 0.2
+  strong_sigma <- 0.7
+  tiny_sigma <- 0.00001
+  control <- treated <- list(beta1 = mod, beta2 = mod, beta3 = mod,
+                             alpha1 = 1.1, alpha2 = 0.95, alpha3 = 1.15,
+                             kappa1 = 0.003, kappa2 = 0.002, kappa3 = 0.004)
+  treated$kappa1 <- control$kappa1 * exp(-1) # log-HR is -1, with tx having lower rate
+  
+  # Make modifications
+  p1 <- list(treated = treated, control = control, sigma = mod_sigma)
+  p2 <- list(treated = treated, control = control, sigma = mod_sigma)
+  p3 <- list(treated = treated, control = control, sigma = mod_sigma)
+  p4 <- list(treated = treated, control = control, sigma = strong_sigma)
+  p5 <- list(treated = treated, control = control, sigma = mod_sigma)
+  p6 <- list(treated = treated, control = control, sigma = mod_sigma)
+  p7 <- list(treated = treated, control = control, sigma = mod_sigma)
+  p2$treated$beta1 <- p2$treated$beta2 <- p2$treated$beta3 <- sharp 
+  p2$control$beta1 <- p2$control$beta2 <- p2$control$beta3 <- sharp
+  p3$treated$beta1 <- p3$treated$beta2 <- p3$treated$beta3 <- blunt 
+  p3$control$beta1 <- p3$control$beta2 <- p3$control$beta3 <- blunt
+  p5$sigma <- tiny_sigma
+  p6$treated$alpha1 <- 0.8
+  p6$control$alpha1 <- 1.2
+  p7$treated$kappa1 <- p7$control$kappa1 # undo protective effect for nonterminal
+  p7$control$kappa2 <- 2 * p7$treated$kappa2 # implement protective effect for terminal
+  
   p <- switch(scenario,
-              "1" = list(beta1.true = c(0, 0.1, 0.1, 0.1),
-                         beta2.true = c(1, 0.1, 0.1, 0.1),
-                         beta3.true = c(-1, 0.1, 0.1, 0.1),
-                         alpha1.true = 1,
-                         alpha2.true = 0.95,
-                         alpha3.true = 1,
-                         kappa1.true = 0.003,
-                         kappa2.true = 0.002, 
-                         kappa3.true = 0.004,
-                         theta.true = 0.2),
-              "2" = list(beta1.true = c(-0.5, 1, 1.1, 1),
-                         beta2.true = c(-0.7, 1, 1, 1.2),
-                         beta3.true = c(-0.5, 1.3, 1, 1),
-                         alpha1.true = 1,
-                         alpha2.true = 0.95,
-                         alpha3.true = 1,
-                         kappa1.true = 0.003,
-                         kappa2.true = 0.002, 
-                         kappa3.true = 0.004,
-                         theta.true = 0.2),
-              "3" = list(beta1.true = c(-0.5, 0.01, 0.01, 0.01),
-                         beta2.true = c(-0.7, 0.01, 0.01, 0.01),
-                         beta3.true = c(-0.5, 0.01, 0.01, 0.01),
-                         alpha1.true = 1,
-                         alpha2.true = 0.95,
-                         alpha3.true = 1,
-                         kappa1.true = 0.003,
-                         kappa2.true = 0.002, 
-                         kappa3.true = 0.004,
-                         theta.true = 0.2),
-              "4" = list(beta1.true = c(-0.5, 0.01, 0.01, 0.01),
-                         beta2.true = c(-0.7, 0.01, 0.01, 0.01),
-                         beta3.true = c(-0.5, 0.01, 0.01, 0.01),
-                         alpha1.true = 1,
-                         alpha2.true = 0.95,
-                         alpha3.true = 1,
-                         kappa1.true = 0.003,
-                         kappa2.true = 0.002, 
-                         kappa3.true = 0.004,
-                         theta.true = 1),
-              "5" = list(beta1.true = c(-0.5, 0.1, 0.1, 0.1, 0.5),
-                         beta2.true = c(-0.7, 0.1, 0.1, 0.1, 1),
-                         beta3.true = c(-0.5, 0.1, 0.1, 0.1, 1),
-                         alpha1.true = 1,
-                         alpha2.true = 0.95,
-                         alpha3.true = 1,
-                         kappa1.true = 0.003,
-                         kappa2.true = 0.002, 
-                         kappa3.true = 0.004,
-                         theta.true = 0),
-              "6" = list(beta1.true = c(-0.5, 0.1, 0.1, 0.1, 1),
-                         beta2.true = c(-0.7, 0.1, 0.1, 0.1, 1),
-                         beta3.true = c(-0.5, 0.1, 0.1, 0.1, 1),
-                         alpha1.true = 1,
-                         alpha2.true = 0.95,
-                         alpha3.true = 1,
-                         kappa1.true = 0.003,
-                         kappa2.true = 0.002, 
-                         kappa3.true = 0.004,
-                         theta.true = 0))
+              "1" = p1,
+              "2" = p2,
+              "3" = p3,
+              "4" = p4,
+              "5" = p5,
+              "6" = p6,
+              "7" = p7)
   return(p)
 }
 
@@ -84,45 +66,101 @@ return_dgp_parameters <- function(scenario) {
 #' @param n Sample size
 #' @param seed Seed
 #' @param scenario Scenario; see \code{\link{return_dgp_parameters}}
+#' @param censor Whether to impose censoring. Defaults to TRUE. (If FALSE, 
+#' applies uniform censoring at starting at 2 * 99.999 percentile to ensure
+#' essentially no censoring takes place.)
+#' @param observed Whether to only return data set of observed potential outcomes
+#' or to include both sets. Defaults to TRUE.
 #' @return Data frame
 #' @export
-simulate_scenario <- function(n = 5000, seed = 123, scenario) {
+simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE, 
+                              observed = TRUE) {
   set.seed(seed)
-  params <- return_dgp_parameters(scenario = as.character(scenario))
-  P <- 3
+  P <- 4
+  params <- return_dgp_parameters(scenario = as.character(scenario), P = P)
   z <- rbinom(n, size = 1, prob = 0.5)
-  x <- cbind(z, matrix(rnorm(n * P), ncol = 3))
-  colnames(x)[2:(P+1)] <- paste0("X", 1:P)
-  if (scenario %in% c(4, 5)) {
-    if (scenario == 4){
-      theta.true <- 0.2
-      frailty <- rgamma(n, 1 / theta.true, 1 / theta.true)
-      x1 <- x2 <- x3 <- cbind(x, log(frailty))
-    } else if (scenario == 5) {
-      # lognormal with median of 1 and variance of 0.2
-      frailty <- exp(rnorm(n, mean = 0, sd = sqrt(log(0.5 + 0.3 * sqrt(5)))))
-      x1 <- x2 <- x3 <- cbind(x, log(frailty))
-    } 
+  x <- matrix(rnorm(n * P), ncol = P)
+  colnames(x) <- paste0("X", 1:P)
+  frailty <- rgamma(n, 1 / params$sigma, 1 / params$sigma)
+  x1 <- x2 <- x3 <- cbind(x, log(frailty))
+  if (censor) {
+    cens_lb <- get_eval_t() * 0.5
+    cens_ub <- cens_lb * 6  
   } else {
-    x1 <- x2 <- x3 <- x 
+    cens_lb <- max(qweibull(p = 0.99999, 
+                            shape = params$treated$alpha1, 
+                            scale = exp(-(log(params$treated$kappa1) +
+                                    x1 %*% c(params$treated$beta1, 1)) / 
+                                    params$treated$alpha1)),
+                   qweibull(p = 0.99999, 
+                            shape = params$treated$alpha2, 
+                            scale = exp(-(log(params$treated$kappa2) +
+                                    x1 %*% c(params$treated$beta2, 1)) / 
+                                    params$treated$alpha2)),
+                   qweibull(p = 0.99999, 
+                            shape = params$control$alpha1, 
+                            scale = exp(-(log(params$control$kappa1) +
+                                            x1 %*% c(params$control$beta1, 1)) / 
+                                          params$control$alpha1)),
+                   qweibull(p = 0.99999, 
+                            shape = params$control$alpha2, 
+                            scale = exp(-(log(params$control$kappa2) +
+                                            x1 %*% c(params$control$beta2, 1)) / 
+                                          params$control$alpha2))) * 2
+    cens_ub <- 2 * cens_lb
   }
-  cens_lb <- get_eval_t() * 0.5
-  cens_ub <- cens_lb * 6
-  dat <- SemiCompRisks::simID(id = NULL, 
-                              x1 = x1, x2 = x2, x3 = x3,
-                              beta1.true = params$beta1.true,
-                              beta2.true = params$beta2.true,
-                              beta3.true = params$beta3.true,
-                              alpha1.true = params$alpha1.true, 
-                              alpha2.true = params$alpha2.true,
-                              alpha3.true = params$alpha3.true,
-                              kappa1.true = params$kappa1.true, 
-                              kappa2.true = params$kappa2.true, 
-                              kappa3.true = params$kappa3.true,
-                              theta.true = params$theta.true, 
-                              SigmaV.true = NULL,
-                              cens = c(cens_lb, cens_ub))
-  return(cbind(dat, x, z = z))
+  treated <- SemiCompRisks::simID(id = NULL, 
+                                  x1 = x1, x2 = x2, x3 = x3,
+                                  beta1.true = c(params$treated$beta1, 1),
+                                  beta2.true = c(params$treated$beta2, 1),
+                                  beta3.true = c(params$treated$beta3, 1),
+                                  alpha1.true = params$treated$alpha1, 
+                                  alpha2.true = params$treated$alpha2,
+                                  alpha3.true = params$treated$alpha3,
+                                  kappa1.true = params$treated$kappa1, 
+                                  kappa2.true = params$treated$kappa2, 
+                                  kappa3.true = params$treated$kappa3,
+                                  theta.true = 0,
+                                  SigmaV.true = NULL,
+                                  cens = c(cens_lb, cens_ub))
+  control <- SemiCompRisks::simID(id = NULL, 
+                                  x1 = x1, x2 = x2, x3 = x3,
+                                  beta1.true = c(params$control$beta1, 1),
+                                  beta2.true = c(params$control$beta2, 1),
+                                  beta3.true = c(params$control$beta3, 1),
+                                  alpha1.true = params$control$alpha1, 
+                                  alpha2.true = params$control$alpha2,
+                                  alpha3.true = params$control$alpha3,
+                                  kappa1.true = params$control$kappa1, 
+                                  kappa2.true = params$control$kappa2, 
+                                  kappa3.true = params$control$kappa3,
+                                  theta.true = 0,
+                                  SigmaV.true = NULL,
+                                  cens = c(cens_lb, cens_ub))
+  dat <- control * NA
+  dat[z == 0, ] <- control[z == 0, ]
+  dat[z == 1, ] <- treated[z == 1, ]
+  names(dat) <- c("yr", "dyr", "yt", "dyt")
+  if (observed) {
+    return(cbind(dat, x, z = z))  
+  } else {
+    colnames(control) <- c("yr0", "dyr0", "yt0", "dyt0")
+    colnames(treated) <- c("yr1", "dyr1", "yt1", "dyt1")
+    return(cbind(dat, control, treated, x, z = z, frailty = frailty))
+  }
+}
+
+
+
+#' Simulate "true" data set for operating characteristics check
+#' 
+#' @param scenario Scenario; 
+#' @return Simulated data set
+#' @export
+simulate_truth_scenario <- function(scenario) {
+  dat <- simulate_scenario(n = 100000, seed = 313517734, scenario,
+                           censor = FALSE, observed = FALSE)
+  return(dat)
 }
 
 
@@ -149,15 +187,29 @@ run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4,
                               sigma_pa = 11, sigma_pb = 2, 
                               init = "random", init_r = 0.5, 
                               ...) {
-  dat <- simulate_scenario(n = n, seed = seed, scenario = scenario)  
+  dat <- simulate_scenario(n = n, seed = seed, scenario = scenario, 
+                           censor = TRUE, observed = TRUE)  
   xmat <- make_xmat_all_X(dat)
   stan_fit <- scr_gamma_frailty_stan(x = xmat, z = dat$z, 
-                                     yr = dat$y1, yt = dat$y2, 
-                                     dyr = dat$delta1, dyt = dat$delta2,
+                                     yr = dat$yr, yt = dat$yt, 
+                                     dyr = dat$dyr, dyt = dat$dyt,
                                      use_priors = TRUE, 
                                      sigma_pa = sigma_pa, sigma_pb = sigma_pb,
                                      iter = iter, chains = chains,
                                      ...)
   return(list(dat = dat, xmat = xmat, stan_fit = stan_fit))
+}
+
+
+
+#' Simulate a large data set to be the "truth" for the scenario estimands
+#' 
+#' @param scenario Scenario; see \code{\link{return_dgp_parameters}}
+#' @return Complete data set of potential outcomes
+#' @export
+simulate_scenario_truth <- function(scenario = 1) {
+  dat <- simulate_scenario(n = 10^5, seed = 42313, scenario = scenario,
+                           censor = FALSE, observed = FALSE)
+  xmat <- make_xmat_all_X(dat)
 }
 
