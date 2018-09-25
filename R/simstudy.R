@@ -71,10 +71,11 @@ return_dgp_parameters <- function(scenario, P = 4) {
 #' essentially no censoring takes place.)
 #' @param observed Whether to only return data set of observed potential outcomes
 #' or to include both sets. Defaults to TRUE.
+#' @param add_imp Whether to add _imp suffix to the potential outcomes
 #' @return Data frame
 #' @export
 simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE, 
-                              observed = TRUE) {
+                              observed = TRUE, add_imp = FALSE) {
   set.seed(seed)
   P <- 4
   params <- return_dgp_parameters(scenario = as.character(scenario), P = P)
@@ -140,12 +141,22 @@ simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE,
   dat <- control * NA
   dat[z == 0, ] <- control[z == 0, ]
   dat[z == 1, ] <- treated[z == 1, ]
-  names(dat) <- c("yr", "dyr", "yt", "dyt")
+  po_names <- c("yr", "dyr", "yt", "dyt")
+  if (add_imp) {
+    names(dat) <- paste0(po_names, "_imp")
+  } else {
+    names(dat) <- paste0(po_names, "_imp")
+  }
   if (observed) {
     return(cbind(dat, x, z = z))  
   } else {
-    colnames(control) <- c("yr0", "dyr0", "yt0", "dyt0")
-    colnames(treated) <- c("yr1", "dyr1", "yt1", "dyt1")
+    if (add_imp) {
+      colnames(control) <- paste0(po_names, "0_imp")
+      colnames(treated) <- paste0(po_names, "1_imp")
+    } else {
+      colnames(control) <- paste0(po_names, "0")
+      colnames(treated) <- paste0(po_names, "1")
+    }
     return(cbind(dat, control, treated, x, z = z, frailty = frailty))
   }
 }
@@ -155,9 +166,11 @@ simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE,
 #' Simulate "true" data set for operating characteristics check
 #' 
 #' @param scenario Scenario; 
+#' @param add_imp Whether to add "_imp" suffix to potential outcomes, as is 
+#' needed for the calculation of causal effects
 #' @return Simulated data set
 #' @export
-simulate_truth_scenario <- function(scenario) {
+simulate_truth_scenario <- function(scenario, add_imp = FALSE) {
   dat <- simulate_scenario(n = 100000, seed = 313517734, scenario,
                            censor = FALSE, observed = FALSE)
   return(dat)
@@ -202,14 +215,36 @@ run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4,
 
 
 
+#' Add the _imp suffix to potential outcome variables in a data set
+#' 
+#' Useful for calculating causal effects in ground truth data sets
+#' 
+#' @param dat Data frame containing variables named yr0, yr1, ... dyt1
+#' @return Data frame with renamed columns
+#' @export
+add_imp_suffix <- function(dat) {
+  po_names <- apply(expand.grid(c("d",""), "y", c("r","t"), c("0","1")),
+                    1, paste0, collapse = "")
+  po_names <- colnames(dat)[colnames(dat) %in% po_names]
+  which_po <- which(colnames(dat) %in% po_names)
+  po_suff <- paste0(po_names, "_imp")
+  colnames(dat)[which_po] <- po_suff
+  return(dat)
+}
+
+
+
 #' Simulate a large data set to be the "truth" for the scenario estimands
 #' 
 #' @param scenario Scenario; see \code{\link{return_dgp_parameters}}
+#' @param add_imp Whether to add _imp suffix to the potential outcomes
 #' @return Complete data set of potential outcomes
 #' @export
-simulate_scenario_truth <- function(scenario = 1) {
+simulate_scenario_truth <- function(scenario = 1, add_imp = FALSE) {
   dat <- simulate_scenario(n = 10^5, seed = 42313, scenario = scenario,
-                           censor = FALSE, observed = FALSE)
-  xmat <- make_xmat_all_X(dat)
+                           censor = FALSE, observed = FALSE, add_imp = add_imp)
+  return(dat)
 }
+
+
 

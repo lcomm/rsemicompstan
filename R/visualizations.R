@@ -48,6 +48,19 @@ calculate_frac_aa <- function(eval_t, pp) {
 
 
 
+#' Vectorized calculate fraction of population that is always-alive
+#' 
+#' Evaluates for a vector of times
+#' 
+#' @param eval_t Times at which to evaluate survival
+#' @param pp Posterior predictive draws (for a single MCMC iteration)
+#' @return Scalar value between 0 and 1 representing proportion always-alive
+#' @export
+v_calculate_frac_aa <- Vectorize(FUN = calculate_frac_aa, 
+                                 vectorize.args = "eval_t")
+
+
+
 #' Turn posterior predictive data into a long format amenable to graphing the 
 #' causal effect
 #' 
