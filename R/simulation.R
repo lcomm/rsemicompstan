@@ -68,6 +68,9 @@ simulate_frailty <- function(n, sigma = 1) {
 #' @export
 get_prior_mean_from_mle <- function(time, event = NULL) {
   
+  # Prevent problems from discretized dates by eliminating zeros
+  time <- time + .Machine$double.eps
+  
   if (is.null(event)) {
     fit <- survival::survreg(survival::Surv(time = time) ~ 1, 
                              dist = "weibull")
