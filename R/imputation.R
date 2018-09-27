@@ -489,7 +489,7 @@ get_eval_t <- function() {
 make_terminal_risk_scores <- function(stan_fit, yr, yt, dyr, dyt, z, xmat, 
                                       eval_t) {
   pp_ref <- posterior_predict_sample(stan_fit, yr, yt, dyr, dyt, z, xmat,
-                                     reference_frailty = TRUE)
+                                     frailty_type = "reference")
   is_aa_t1_ref <- (apply(X = pp_ref, MARGIN = 3, FUN = make_pstates, 
                          eval_t = eval_t) == "AA")
   risk_score <- rowMeans(is_aa_t1_ref)
