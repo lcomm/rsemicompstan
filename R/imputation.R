@@ -374,9 +374,9 @@ make_pstates <- function(eval_t, pp) {
   pp <- as.data.frame(pp)
   pstate <- rep(NA, NROW(pp))
   pstate[(pp$yt0_imp > eval_t) & (pp$yt1_imp > eval_t)] <- "AA"
-  pstate[(pp$yt0_imp > eval_t) & (pp$yt1_imp < eval_t)] <- "TK"
-  pstate[(pp$yt0_imp < eval_t) & (pp$yt1_imp > eval_t)] <- "TS"
-  pstate[(pp$yt0_imp < eval_t) & (pp$yt1_imp < eval_t)] <- "DD"
+  pstate[(pp$yt0_imp > eval_t) & (pp$yt1_imp <= eval_t)] <- "TK"
+  pstate[(pp$yt0_imp <= eval_t) & (pp$yt1_imp > eval_t)] <- "TS"
+  pstate[(pp$yt0_imp <= eval_t) & (pp$yt1_imp <= eval_t)] <- "DD"
   return(pstate)
 }
 
