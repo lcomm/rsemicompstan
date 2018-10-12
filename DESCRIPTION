@@ -27,7 +27,8 @@ Imports:
     RColorBrewer, 
     reshape2, 
     ggridges, 
-    ggpubr
+    ggpubr,
+    directlabels
 LinkingTo: 
     StanHeaders (>= 2.17.2), 
     rstan (>= 2.17.2), 

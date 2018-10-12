@@ -28,7 +28,7 @@ return_dgp_parameters <- function(scenario, P = 4) {
   control <- treated <- list(beta1 = mod, beta2 = mod, beta3 = mod,
                              alpha1 = 1.1, alpha2 = 0.95, alpha3 = 1.15,
                              kappa1 = 0.003, kappa2 = 0.002, kappa3 = 0.004)
-  treated$kappa1 <- control$kappa1 * exp(-1) # log-HR is -1, with tx having lower rate
+  treated$kappa1 <- control$kappa1 * exp(-0.25) # HR is 0.78, with tx having lower rate
   
   # Make modifications
   p1 <- list(treated = treated, control = control, sigma = mod_sigma)

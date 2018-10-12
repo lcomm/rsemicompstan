@@ -61,6 +61,19 @@ v_calculate_frac_aa <- Vectorize(FUN = calculate_frac_aa,
 
 
 
+#' Vectorized calculation of principal states
+#' 
+#' Evaluates for a vector of times
+#' 
+#' @param eval_t Vector of T times at which to evaluate survival
+#' @param pp Posterior predictive draws (for a single MCMC iteration)
+#' @return N x T matrix of principal state characters ("AA"/"TK"/"CK"/"DD")
+#' @export
+v_make_pstates <- Vectorize(FUN = make_pstates, 
+                            vectorize.args = "eval_t")
+
+
+
 #' Turn posterior predictive data into a long format amenable to graphing the 
 #' causal effect
 #' 
@@ -95,12 +108,94 @@ prepare_graph_data <- function(pp, max_t, length_out = 10) {
 
 
 
+#' Calculate TV-SACE(r, t) among a group already subsetted to always-alive at t
+#' 
+#' Note: by assuming the data have already been subsetted to be always-alive
+#' based on some t > max(eval_t), it is assumed than any times for r0 or r1 are 
+#' event times. This may be problematic for r = t.
+#' 
+#' @param r1 Potential outcomes under treatment (assumed not censoring!)
+#' @param r0 Potential outcomes under control (assumed not censoring!)
+#' @param eval_t Scalar value for r argument in TV-SACE(r, t)
+#' @export
+tv_sace_aa_only <- function(r1, r0, eval_t) {
+  r1_by_t <- r0_by_t <- rep(0, length(r1))
+  r0_by_t[r0 < eval_t] <- 1
+  r1_by_t[r1 < eval_t] <- 1
+  diff_by_t <- r1_by_t - r0_by_t
+  tv_sace <- mean(diff_by_t)
+  return(tv_sace)
+}
+
+
+
+#' Vectorized calculation of TV-SACE when passed always-alive subset
+#' 
+#' Evaluates for a vector of times
+#' 
+#' @param r1 Potential outcomes under treatment (assumed not censoring!)
+#' @param r0 Potential outcomes under control (assumed not censoring!)
+#' @param eval_t Vector values for r argument in TV-SACE(r, t)
+#' @export
+v_tv_sace_aa_only <- Vectorize(tv_sace_aa_only, 
+                               vectorize.args = "eval_t")
+
+
+
+#' Turn posterior predictive data into a long format amenable to graphing the 
+#' causal effects separately by always-alive cohorts
+#' 
+#' @param pp Posterior prediction array
+#' @param cohort Time(s) for defining the always-alive cohort
+#' @param length_out Number of time points at which to calculate effects. More points
+#' means smoother effect lines
+#' @return Data frame with MCMC iteration (r), evaluation time point (eval_t),
+#' time-varying survivor average causal effect (tv_sace), and restricted mean survivor
+#' average causal effect (rm_sace)
+#' @export
+prepare_cohort_graph_data <- function(pp, cohort, length_out = 10) {
+  R <- dim(pp)[3]
+  res <- as.data.frame(expand.grid(eval_t = 1:length_out, 
+                                   cohort = cohort, 
+                                   tv_sace = NA,
+                                   frac_aa = NA))
+  for (cohort_t in cohort) {
+    xt <- seq(0, cohort_t, length.out = length_out)
+    tv_sace <- xt * 0
+    frac_aa <- 0
+    for (r in 1:R) {
+      pp_mcmc <- as.data.frame(pp[, , r])
+      pstates <- make_pstates(eval_t = cohort_t, pp = pp_mcmc)
+      if (any(pstates == "AA")) {
+        aa <- pp_mcmc[pstates == "AA", ] 
+        tv_sace <- tv_sace + v_tv_sace_aa_only(r1 = aa$yr1_imp, 
+                                               r0 = aa$yr0_imp, 
+                                               eval_t = xt) / R 
+        frac_aa <- frac_aa + (NROW(aa) / NROW(pp_mcmc)) / R
+      } else {
+        stop("Division by R not warranted!")
+      }
+    }
+    res$eval_t[res$cohort == cohort_t]  <- xt
+    res$tv_sace[res$cohort == cohort_t] <- tv_sace
+    res$frac_aa[res$cohort == cohort_t] <- frac_aa
+  }
+  res$cohort_id <- as.factor(cohort)
+  return(res)
+}
+
+
+
 #' Make always-alive survival plot
 #' 
 #' @param plot_dat Plot data set from \code{\link{prepare_graph_data}}
 #' @return ggplot object
 #' @export
 make_aa_kmplot <- function(plot_dat) {
+
+  # Set alpha to lower if many replicates
+  alpha_val <- ifelse(length(unique(plot_dat$r)) < 100, 0.15, 0.005)
+
   # Calculate overall mean 
   f_aa_mean_dat <- aggregate(frac_aa ~ eval_t, data = plot_dat, FUN = mean)
   f_aa_mean_dat$r <- 1
@@ -108,7 +203,7 @@ make_aa_kmplot <- function(plot_dat) {
   # Make plot
   p <- ggplot(data = plot_dat,
               aes_string(y = "frac_aa", x = "eval_t", group = "r")) + 
-    geom_line(alpha = 0.15) + 
+    geom_line(alpha = alpha_val) + 
     ylim(0, 1) + 
     geom_line(data = f_aa_mean_dat,
               aes_string(y = "frac_aa", x = "eval_t")) + 
@@ -140,11 +235,12 @@ make_tvsace_plot <- function(plot_dat) {
     scale_color_gradientn("Proportion Always-Alive",
                           colors = RColorBrewer::brewer.pal(9, "YlOrRd"),
                           limits = c(0, 1),
-                          breaks = c(0, 1),
-                          guide = TRUE) + 
-    guides(alpha = FALSE) + 
+                          breaks = c(0, 1), guide = "none") +
+    # ,
+    #                       guide = TRUE) + 
+    # guides(alpha = FALSE) + 
     theme_minimal() + 
-    theme(legend.position = "right") + 
+    # theme(legend.position = "right") + 
     labs(x = "Time t", y = "TV-SACE(t)") + 
     ggtitle("Time-varying survivor average causal effect")
   
@@ -170,8 +266,8 @@ make_rmsace_plot <- function(plot_dat) {
               size = 0.7) +
     scale_color_gradientn(colors = RColorBrewer::brewer.pal(9, "YlOrRd"),
                          limits = c(0, 1),
-                         breaks = c(0, 1)) + 
-    guides(alpha = FALSE, color = FALSE) + 
+                         breaks = c(0, 1), guide = "none") + 
+    # guides(alpha = FALSE, color = FALSE) + 
     theme_minimal() + 
     labs(x = "Time t", y = "RM-SACE(t)") + 
     ggtitle("Restricted mean survivor average causal effect")
@@ -333,6 +429,90 @@ make_sharp_blunt_plotpair <- function(res_sharp, res_blunt,
                  common.legend = TRUE, legend = "bottom")
   
   return(p)
+}
+
+
+
+#' Make plot of TV-SACE(r,t) lines for cohorts defined by t
+#' 
+#' @param cohort_plot_dat Data set of cohorts and effects made by 
+#' \link{\code{prepare_cohort_graph_data}}
+#' @return ggplot2 object
+#' @export
+make_cohort_tvsace_plot <- function(cohort_plot_dat) {
+  
+  p <- ggplot(data = cohort_plot_dat,
+              aes(x = eval_t, y = tv_sace, 
+                  group = cohort_id, 
+                  color = frac_aa)) +
+    geom_smooth(se = FALSE, alpha = 0.7) +
+    xlim(0, 95) + 
+    labs(x = "Time in days",
+         y = "Difference in cumulative incidence of readmission",
+         title = "Time-varying survivor average causal effect of discharge to home (vs. with support) \n on cumulative risk of hospital admission, by always-alive cohort") +
+    scale_color_gradientn("Proportion of population in Always-Alive cohort",
+                          colors = RColorBrewer::brewer.pal(9, "YlOrRd"),
+                          limits = c(0, 1),
+                          breaks = c(0, 1)) +
+    directlabels::geom_dl(aes(label = cohort_id), 
+                          method = list(directlabels::dl.trans(x = x + 0.2),
+                                        "last.points", 
+                                        cex = 1)) +
+    theme(legend.position = "bottom") 
+  return(p)
+}
+
+
+
+#' Function to take series of posterior predictive draws and plot mean proportions
+#' of each principal state
+#' 
+#' @param pp Array of posterior predictive draws
+#' @param maxt Maximum t for the plot
+#' @param length_out Number of time points at which to evaluate curves (more = 
+#' smoother)
+#' @param colorvals Colors for principal states
+#' @return ggplot of state composition over time
+#' @export
+make_state_composition_plot <- function(pp, maxt = 90, length_out = 10,
+                                        colorvals = c("#8da0cb", "#fc8d62",
+                                                      "#ffd92f", "#66c2a5")) {
+  
+  # Sequence of points to evaluate
+  xt <- seq(0, maxt, length.out = length_out)
+  
+  # Get state matrix
+  R <- dim(pp)[3]
+  f_dd <- f_ck <- f_tk <- f_aa <- xt * 0 
+  for (r in 1:R) {
+    pstates <- v_make_pstates(eval_t = xt, pp = pp[, , r])
+    f_aa <- f_aa + colMeans(pstates == "AA") / R
+    f_ck <- f_ck + colMeans(pstates == "TS") / R
+    f_tk <- f_tk + colMeans(pstates == "TK") / R
+    f_dd <- f_dd + colMeans(pstates == "DD") / R  
+  }
+  
+  # Data frame containing proportion in each state at each t
+  state_names <- c("AA", "CK", "TK", "DD")
+  comp_dat <- data.frame(Time = rep(xt, times = length(state_names)),
+                         State = rep(state_names, each = length_out))
+  comp_dat$Proportion <- c(f_aa, f_ck, f_tk, f_dd)
+  comp_dat$State <- factor(comp_dat$State, levels = rev(state_names), 
+                           ordered = TRUE)
+  
+  # Make the plot
+  cplot <- ggplot(comp_dat, aes(x = Time, y = Proportion, fill = State)) + 
+    xlab("Time in days") + 
+    ylab("Proportion in state") +
+    geom_area(color = "black") +
+    scale_fill_manual(values = colorvals) +
+    scale_x_continuous(breaks = seq(0, maxt, by = 30)) +
+    ggtitle("Principal state composition") + 
+    theme_minimal() + 
+    theme(legend.position = "bottom")
+  
+  # Return
+  return(cplot)
 }
 
 

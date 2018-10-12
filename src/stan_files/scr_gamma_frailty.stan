@@ -88,7 +88,7 @@ model {
     lp1 = lp[n, 1] + log_kappa[i];
     lp2 = lp[n, 2] + log_kappa[i + 1];
     lp3 = lp[n, 3] + log_kappa[i + 2];
-  
+    
     if (type[n] == 1) {
       target += -inv_sigma * log1p(sigma * 
                 (-weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
