@@ -235,14 +235,14 @@ make_tvsace_plot <- function(plot_dat) {
     scale_color_gradientn("Proportion Always-Alive",
                           colors = RColorBrewer::brewer.pal(9, "YlOrRd"),
                           limits = c(0, 1),
-                          breaks = c(0, 1), guide = "none") +
-    # ,
-    #                       guide = TRUE) + 
+                          breaks = c(0, 1), guide = "none") 
     # guides(alpha = FALSE) + 
-    theme_minimal() + 
+    theme_minimal() +
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank()) + 
     # theme(legend.position = "right") + 
-    labs(x = "Time t", y = "TV-SACE(t)") + 
-    ggtitle("Time-varying survivor average causal effect")
+    labs(x = "Time t", y = "TV-SACE(t, t)") + 
+    ggtitle("Variation in survivor average causal effect over time")
   
   return(p)
 }
@@ -259,18 +259,20 @@ make_rmsace_plot <- function(plot_dat) {
   
   p <- ggplot(plot_dat, aes_string(x = "eval_t", y = "rm_sace", group = "r",
                                    color = "frac_aa")) + 
-    geom_line(alpha = 0.4) +
+    geom_line(alpha = 0.2) +
     geom_line(data = rm_mean_dat, 
               aes_string(x = "eval_t", y = "rm_sace", group = NULL), 
               color = "black",
               size = 0.7) +
     scale_color_gradientn(colors = RColorBrewer::brewer.pal(9, "YlOrRd"),
                          limits = c(0, 1),
-                         breaks = c(0, 1), guide = "none") + 
-    # guides(alpha = FALSE, color = FALSE) + 
+                         breaks = c(0, 1)) + 
+    guides(alpha = FALSE, color = FALSE) +
     theme_minimal() + 
-    labs(x = "Time t", y = "RM-SACE(t)") + 
-    ggtitle("Restricted mean survivor average causal effect")
+    theme(panel.grid.major = element_blank(), 
+          panel.grid.minor = element_blank()) + 
+    labs(x = "Time t", y = "RM-SACE(t, t)") + 
+    ggtitle("Variation in restricted mean survivor average causal effect over time")
   
   return(p)
 }

@@ -39,15 +39,22 @@ fit_data_app <- function(file = "~/Dropbox/Semicompeting-PS/scrData.rds",
   zero_soj <- (1:NROW(scr_pc))[-not_zero_soj]
   scr_pc$yt[zero_soj] <- scr_pc$time2[zero_soj] + 0.5
   
-  # Exclude hospice people 
-  scr_pc <- scr_pc[scr_pc$disc_hospice == 0, ]
+  # Exclude anyone discharged to something besides home or home with care
+  scr_pc <- scr_pc[pmax(scr_pc$disc_snf_icf,
+                        scr_pc$disc_hospice,
+                        scr_pc$disc_other) == 0, ]
   
-  # Adjustment covariates are race, standardized age, sex, comorbidity score
-  # "Treatment" is being discharged to home (the reference category) 
-  scr_pc$z <- 1 - pmax(scr_pc$disc_homecare,
-                       scr_pc$disc_snf_icf, 
-                       scr_pc$disc_other)
-  xmat <- cbind(scr_pc$race_noWhite, scr_pc$age_std, scr_pc$sex_female)
+  # Adjustment covariates are race, standardized age, sex, comorbidity score, 
+  # admission route, and hospital length of (initial) stay
+  # "Treatment" is being discharged to home with care (vs. home with no care)
+  # This is reversal of home vs. not-home from before!
+  scr_pc$z <- scr_pc$disc_homecare
+  xmat <- cbind(scr_pc$race_noWhite - mean(scr_pc$race_noWhite), 
+                scr_pc$sex_female - mean(scr_pc$sex_female),
+                scr_pc$deyo2_ - mean(scr_pc$deyo2_), 
+                scr_pc$adm - mean(scr_pc$adm), 
+                scr_pc$age_std, 
+                scr_pc$los_std)
   
   # Fit model
   stan_fit <- scr_gamma_frailty_stan(x = xmat, z = scr_pc$z,
