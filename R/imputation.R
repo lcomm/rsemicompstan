@@ -56,7 +56,7 @@ make_ph_lp <- function(xmat, beta, kappa) {
 make_full_scale <- function(xmat, beta, kappa, alpha, frailty = 1) {
   scale <- matrix(NA, nrow = NROW(xmat), ncol = 3)
   for (g in 1:3) {
-    scale[, g] <- make_scale(make_ph_lp(xmat = as.matrix(xmat),
+    scale[, g] <- make_scale(make_ph_lp(xmat = matrix(xmat, ncol = NROW(beta)),
                                         beta = beta[, g], 
                                         kappa = kappa[g] * frailty), 
                              alpha = alpha[g])
@@ -92,7 +92,6 @@ impute_frailty <- function(yr, yt, dyr, dyt, xmat, alpha, kappa, beta, sigma) {
         -pweibull(yr, alpha[1], scale[, 1], lower.tail = FALSE, log.p = TRUE) + 
         -pweibull(yr, alpha[2], scale[, 2], lower.tail = FALSE, log.p = TRUE) + 
         -pweibull(soj, alpha[3], scale[, 3], lower.tail = FALSE, log.p = TRUE)
-  # browser()
   if (anyNA(c(a1, a2))) {
     browser()
   }
@@ -113,6 +112,7 @@ impute_frailty <- function(yr, yt, dyr, dyt, xmat, alpha, kappa, beta, sigma) {
 rtweibull <- function(shape, scale, lb) {
   p <- pweibull(lb, shape = shape, scale = scale, lower.tail = TRUE)
   u <- runif(n = length(p), min = p, max = 1)
+  if (anyNA(u)) browser()
   rv <- qweibull(p = u, shape = shape, scale = scale)
   return(rv)
 }
@@ -236,18 +236,31 @@ impute_mis <- function(frailty, xmat, alpha, kappa, beta) {
 #' @param beta P x 3 matrix of regression coefficients
 #' @param sigma Scalar frailty variance
 #' @param frailty_type Whether to impute that all frailties are exactly 
-#' one ("reference"), impute from data ("impute") or use provided frailties 
-#' ("given"). Reference is useful for ranking covariate patterns by risk. 
+#' one ("reference"), impute from data ("impute"), use provided frailties 
+#' ("given"), or take a quantile of the distribution implied by sigma 
+#' ("quantile"). Reference is useful for ranking covariate patterns by risk. 
 #' Defaults to "impute".
 #' @param frailty Provided length-N frailty vector if frailty_type = "given"
+#' @param frailty_q Quantile (from 0 to 1) if frailty_type = "quantile"
+#' @param data_type Whether to impute for sample ("sample") or for new people
+#' ("new")
 #' @return N-row data frame of uncensored (z, frailty, yr, yt, dyr, dyt)
 #' @export 
 posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
                                    alpha, kappa, beta, sigma,
                                    frailty_type = "impute", 
-                                   frailty = NULL) {
+                                   frailty = NULL, 
+                                   frailty_q = NULL,
+                                   data_type = "sample") {
+  if (!(data_type %in% c("sample", "new"))) {
+    stop("Need to specify data_type as 'sample' or 'new'")
+  } else if (data_type == "sample" && frailty_type == "quantile") {
+    stop("Quantile frailty specification only makes sense for new observations")
+  }
   if (frailty_type == "given" && is.null(frailty)) {
     stop("Need to provide vector of frailties if frailty_type == given!")
+  } else if (frailty_type == "quantile" && is.null(frailty_q)) {
+    stop("Need to provide quantile for frailty if frailty_type == quantile!")
   }
   n  <- length(z)
   if (frailty_type != "given") {
@@ -257,6 +270,7 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
   obs <- mis <- matrix(NA, nrow = n, ncol = 4)
   for (zval in 0:1) {
     z_which <- which(z == zval)
+    nz <- length(z_which)
     if (zval == 0) {
       obs_indices <- 1:3
       mis_indices <- 4:6
@@ -267,22 +281,38 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
     if (frailty_type == "impute") {
       frailty[z_which] <- impute_frailty(yr = yr[z_which], yt = yt[z_which], 
                                          dyr = dyr[z_which], dyt = dyt[z_which], 
-                                         xmat = as.matrix(xmat[z_which, ]), 
+                                         xmat = as.matrix(xmat[z_which, ], 
+                                                          nrow = nz), 
                                          alpha = alpha[obs_indices], 
                                          kappa = kappa[obs_indices], 
                                          beta = beta, sigma = sigma)
     } else if (frailty_type == "reference") {
       frailty[z_which] <- rep(1, length(z_which))  
+    } else if (frailty_type == "quantile") {
+      frailty[z_which] <- rep(qgamma(p = frailty_q, 1 / sigma, 1 / sigma), 
+                              length(z_which))
+    } 
+    
+    if (data_type == "sample") {
+      obs[z_which, ]   <- impute_obs(frailty = frailty[z_which], 
+                                     yr = yr[z_which], yt = yt[z_which], 
+                                     dyr = dyr[z_which], dyt = dyt[z_which], 
+                                     xmat = as.matrix(xmat[z_which, ], 
+                                                      nrow = nz), 
+                                     alpha = alpha[obs_indices], 
+                                     kappa = kappa[obs_indices], 
+                                     beta = beta)
+    } else if (data_type == "new") {
+      # New people = simulate from "observed" treatment arm process but do not 
+      # truncate to agree with existing outcomes
+      obs[z_which, ]   <- impute_mis(frailty = frailty[z_which], 
+                                     xmat = matrix(xmat[z_which, ], nrow = nz), 
+                                     alpha = alpha[obs_indices],
+                                     kappa = kappa[obs_indices], 
+                                     beta = beta)
     }
-    obs[z_which, ]   <- impute_obs(frailty = frailty[z_which], 
-                                   yr = yr[z_which], yt = yt[z_which], 
-                                   dyr = dyr[z_which], dyt = dyt[z_which], 
-                                   xmat = as.matrix(xmat[z_which, ]), 
-                                   alpha = alpha[obs_indices], 
-                                   kappa = kappa[obs_indices], 
-                                   beta = beta)
     mis[z_which, ]   <- impute_mis(frailty = frailty[z_which], 
-                                   xmat = as.matrix(xmat[z_which, ]), 
+                                   xmat = matrix(xmat[z_which, ], nrow = nz), 
                                    alpha = alpha[mis_indices],
                                    kappa = kappa[mis_indices], 
                                    beta = beta)
@@ -311,7 +341,7 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
 #' @param z Assigned treatment vector
 #' @param xmat N x P design matrix
 #' @param frailty_type Whether to impute that all frailties are exactly 
-#' one ("reference"), impute from data ("impute") or use provided frailties 
+#' one ("reference"), impute from data ("impute"), use provided frailties 
 #' ("given"). Reference is useful for ranking covariate patterns by risk. 
 #' Defaults to "impute".
 #' @param frailty Provided length-N frailty vector or N x R matrix if 
@@ -497,4 +527,64 @@ make_terminal_risk_scores <- function(stan_fit, yr, yt, dyr, dyt, z, xmat,
 }
 
 
-#TODO(LCOMM): unit tests
+
+#' Function to do posterior prediction for a new design matrix based on
+#' parameter draws from an existing Stan fit object
+#' 
+#' @param xnew Design matrix with J rows (observations) and P columns 
+#' (covariates)
+#' @param stan_fit Stan fit object like that returned as an element of the list
+#' output from \code{\link{run_scr_replicate}}
+#' @param frailty Frailty, if provided. Useful for passing in a 1 to get reference.
+#' @param frailty_q Frailty quantile, if desiring to draw from frailty distribution
+#' implied by posterior for sigma
+#' @return Array of posterior predictions
+#' @export
+posterior_predict_xnew <- function(xnew, stan_fit, frailty = NULL, frailty_q = 0.5) {
+  aalpha <- t(as.array(extract(stan_fit, par = "alpha")[["alpha"]]))
+  akappa <- t(as.array(extract(stan_fit, par = "kappa")[["kappa"]]))
+  asigma <- as.array(extract(stan_fit, par = "sigma")[["sigma"]])  
+  abeta  <- aperm(as.array(extract(stan_fit, par = "beta")[["beta"]]), 
+                  c(2, 3, 1))
+  R <- NCOL(aalpha)
+  nnew <- NROW(xnew)
+  znew <- round(seq(0, 1, length.out = nnew))
+  zeros <- rep(0, nnew)
+  pps <- array(NA, dim = c(nnew, 10, R))
+  for (r in 1:R) {
+    alpha <- aalpha[, r]
+    kappa <- akappa[, r]
+    sigma <- asigma[r]
+    beta <- matrix(abeta[ , , r], ncol = 3)
+    if (!(is.null(frailty))) {
+      a <- posterior_predict_draw(yr = zeros, 
+                                  yt = zeros, 
+                                  dyr = zeros, 
+                                  dyt = zeros, 
+                                  z = znew, 
+                                  xmat = xnew,
+                                  alpha, kappa, beta, sigma,
+                                  frailty_type = "given", 
+                                  frailty = frailty,
+                                  data_type = "new")
+    } else {
+      a <- posterior_predict_draw(yr = zeros, 
+                                  yt = zeros, 
+                                  dyr = zeros, 
+                                  dyt = zeros, 
+                                  z = znew, 
+                                  xmat = xnew,
+                                  alpha, kappa, beta, sigma,
+                                  frailty_type = "quantile", 
+                                  frailty_q = frailty_q,
+                                  data_type = "new")
+    }
+    pps[ , , r] <- a
+  }
+  dimnames(pps)[[2]] <- colnames(a)
+  
+  return(pps)
+}
+
+
+

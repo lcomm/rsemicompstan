@@ -1,3 +1,87 @@
+#'
+#' Very lightly adapted from SemiCompRisks::simID function. Only difference
+#' is that you can pass in censoring times 
+#' 
+#' 
+modified_simID <- function(id = NULL, x1, x2, x3, 
+                           beta1.true, beta2.true, beta3.true, 
+                           alpha1.true, alpha2.true, alpha3.true, 
+                           kappa1.true, kappa2.true, kappa3.true, 
+                           theta.true, SigmaV.true = NULL, 
+                           cens, cens_times = NULL) {
+  if (!is.null(id) & is.null(SigmaV.true)) {
+    stop("SigmaV.true must be given to simulate correlated data")
+  }
+  else {
+    n <- dim(x1)[1]
+    p1 <- dim(x1)[2]
+    p2 <- dim(x2)[2]
+    p3 <- dim(x3)[2]
+    if (theta.true > 0) {
+      gamma.true <- rgamma(n, 1/theta.true, 1/theta.true)
+    }
+    if (theta.true == 0) {
+      gamma.true <- rep(1, n)
+    }
+    if (is.null(id)) {
+      LP1 <- as.vector(beta1.true %*% t(x1))
+      LP2 <- as.vector(beta2.true %*% t(x2))
+      LP3 <- as.vector(beta3.true %*% t(x3))
+    }
+    if (!is.null(id)) {
+      J <- length(unique(id))
+      nj <- as.vector(table(id))
+      Vmat <- mvrnorm(J, rep(0, 3), SigmaV.true)
+      LP1 <- as.vector(beta1.true %*% t(x1) + rep(Vmat[, 
+                                                       1], nj))
+      LP2 <- as.vector(beta2.true %*% t(x2) + rep(Vmat[, 
+                                                       2], nj))
+      LP3 <- as.vector(beta3.true %*% t(x3) + rep(Vmat[, 
+                                                       3], nj))
+    }
+    Rind <- NULL
+    R <- rweibull(n, shape = alpha1.true, scale = exp(-(log(kappa1.true) + 
+                                                          LP1 + log(gamma.true))/alpha1.true))
+    D <- rweibull(n, shape = alpha2.true, scale = exp(-(log(kappa2.true) + 
+                                                          LP2 + log(gamma.true))/alpha2.true))
+    yesR <- R < D
+    if (any(yesR)) {
+      D[yesR] <- R[yesR] + rweibull(sum(yesR), shape = alpha3.true, 
+                                    scale = exp(-(log(kappa3.true) + LP3[yesR] + log(gamma.true[yesR]))/alpha3.true))
+    }
+    delta1 <- rep(NA, n)
+    delta2 <- rep(NA, n)
+    y1 <- R
+    y2 <- D
+    if (is.null(cens_times)) {
+      Cen <- runif(n, cens[1], cens[2])  
+    } else {
+      stopifnot(length(cens_times) == n)
+      Cen <- cens_times
+    }
+    ind01 <- which(D < R & D < Cen)
+    y1[ind01] <- D[ind01]
+    delta1[ind01] <- 0
+    delta2[ind01] <- 1
+    ind10 <- which(R < D & R < Cen & D >= Cen)
+    y2[ind10] <- Cen[ind10]
+    delta1[ind10] <- 1
+    delta2[ind10] <- 0
+    ind00 <- which(R >= Cen & D >= Cen)
+    y1[ind00] <- Cen[ind00]
+    y2[ind00] <- Cen[ind00]
+    delta1[ind00] <- 0
+    delta2[ind00] <- 0
+    ind11 <- which(R < Cen & D < Cen & R < D)
+    delta1[ind11] <- 1
+    delta2[ind11] <- 1
+    ret <- data.frame(cbind(y1, delta1, y2, delta2))
+    return(ret)
+  }
+}
+  
+
+
 #' Return data generation parameters for different scenarios
 #' 
 #' @param scenario
@@ -61,11 +145,13 @@ return_dgp_parameters <- function(scenario, P = 4) {
 
 
 
-#' Simulate data for different scenarios
+#' Simulate data for based on a parameter output list
 #' 
 #' @param n Sample size
 #' @param seed Seed
-#' @param scenario Scenario; see \code{\link{return_dgp_parameters}}
+#' @param params Parameter list like from \code{\link{return_dgp_parameters}}
+#' @param data_match (Optional) list containing z, x, and cens_times to match;
+#' useful for simulating replicate data sets for discrepancy measures
 #' @param censor Whether to impose censoring. Defaults to TRUE. (If FALSE, 
 #' applies uniform censoring at starting at 2 * 99.999 percentile to ensure
 #' essentially no censoring takes place.)
@@ -74,14 +160,25 @@ return_dgp_parameters <- function(scenario, P = 4) {
 #' @param add_imp Whether to add _imp suffix to the potential outcomes
 #' @return Data frame
 #' @export
-simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE, 
-                              observed = TRUE, add_imp = FALSE) {
+simulate_from_param <- function(n = 5000, seed = 123, params, data_match = NULL,
+                                censor = TRUE, observed = TRUE, add_imp = FALSE) {
   set.seed(seed)
-  P <- 4
-  params <- return_dgp_parameters(scenario = as.character(scenario), P = P)
-  z <- rbinom(n, size = 1, prob = 0.5)
-  x <- matrix(rnorm(n * P), ncol = P)
-  colnames(x) <- paste0("X", 1:P)
+  P <- length(params$treated$beta1)
+  if (is.null(data_match)) {
+    z <- rbinom(n, size = 1, prob = 0.5)
+    x <- matrix(rnorm(n * P), ncol = P)
+    colnames(x) <- paste0("X", 1:P)
+    cens_times <- NULL
+  } else {
+    z <- data_match$z
+    x <- data_match$x
+    if (censor) {
+      cens_times <- data_match$cens_times
+    } else {
+      cens_times <- NULL
+    }
+  }
+  
   frailty <- rgamma(n, 1 / params$sigma, 1 / params$sigma)
   x1 <- x2 <- x3 <- cbind(x, log(frailty))
   if (censor) {
@@ -91,13 +188,13 @@ simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE,
     cens_lb <- max(qweibull(p = 0.99999, 
                             shape = params$treated$alpha1, 
                             scale = exp(-(log(params$treated$kappa1) +
-                                    x1 %*% c(params$treated$beta1, 1)) / 
-                                    params$treated$alpha1)),
+                                            x1 %*% c(params$treated$beta1, 1)) / 
+                                          params$treated$alpha1)),
                    qweibull(p = 0.99999, 
                             shape = params$treated$alpha2, 
                             scale = exp(-(log(params$treated$kappa2) +
-                                    x1 %*% c(params$treated$beta2, 1)) / 
-                                    params$treated$alpha2)),
+                                            x1 %*% c(params$treated$beta2, 1)) / 
+                                          params$treated$alpha2)),
                    qweibull(p = 0.99999, 
                             shape = params$control$alpha1, 
                             scale = exp(-(log(params$control$kappa1) +
@@ -110,34 +207,36 @@ simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE,
                                           params$control$alpha2))) * 2
     cens_ub <- 2 * cens_lb
   }
-  treated <- SemiCompRisks::simID(id = NULL, 
-                                  x1 = x1, x2 = x2, x3 = x3,
-                                  beta1.true = c(params$treated$beta1, 1),
-                                  beta2.true = c(params$treated$beta2, 1),
-                                  beta3.true = c(params$treated$beta3, 1),
-                                  alpha1.true = params$treated$alpha1, 
-                                  alpha2.true = params$treated$alpha2,
-                                  alpha3.true = params$treated$alpha3,
-                                  kappa1.true = params$treated$kappa1, 
-                                  kappa2.true = params$treated$kappa2, 
-                                  kappa3.true = params$treated$kappa3,
-                                  theta.true = 0,
-                                  SigmaV.true = NULL,
-                                  cens = c(cens_lb, cens_ub))
-  control <- SemiCompRisks::simID(id = NULL, 
-                                  x1 = x1, x2 = x2, x3 = x3,
-                                  beta1.true = c(params$control$beta1, 1),
-                                  beta2.true = c(params$control$beta2, 1),
-                                  beta3.true = c(params$control$beta3, 1),
-                                  alpha1.true = params$control$alpha1, 
-                                  alpha2.true = params$control$alpha2,
-                                  alpha3.true = params$control$alpha3,
-                                  kappa1.true = params$control$kappa1, 
-                                  kappa2.true = params$control$kappa2, 
-                                  kappa3.true = params$control$kappa3,
-                                  theta.true = 0,
-                                  SigmaV.true = NULL,
-                                  cens = c(cens_lb, cens_ub))
+  treated <- modified_simID(id = NULL, 
+                            x1 = x1, x2 = x2, x3 = x3,
+                            beta1.true = c(params$treated$beta1, 1),
+                            beta2.true = c(params$treated$beta2, 1),
+                            beta3.true = c(params$treated$beta3, 1),
+                            alpha1.true = params$treated$alpha1, 
+                            alpha2.true = params$treated$alpha2,
+                            alpha3.true = params$treated$alpha3,
+                            kappa1.true = params$treated$kappa1, 
+                            kappa2.true = params$treated$kappa2, 
+                            kappa3.true = params$treated$kappa3,
+                            theta.true = 0,
+                            SigmaV.true = NULL,
+                            cens = c(cens_lb, cens_ub),
+                            cens_times = cens_times)
+  control <- modified_simID(id = NULL, 
+                            x1 = x1, x2 = x2, x3 = x3,
+                            beta1.true = c(params$control$beta1, 1),
+                            beta2.true = c(params$control$beta2, 1),
+                            beta3.true = c(params$control$beta3, 1),
+                            alpha1.true = params$control$alpha1, 
+                            alpha2.true = params$control$alpha2,
+                            alpha3.true = params$control$alpha3,
+                            kappa1.true = params$control$kappa1, 
+                            kappa2.true = params$control$kappa2, 
+                            kappa3.true = params$control$kappa3,
+                            theta.true = 0,
+                            SigmaV.true = NULL,
+                            cens = c(cens_lb, cens_ub),
+                            cens_times = cens_times)
   dat <- control * NA
   dat[z == 0, ] <- control[z == 0, ]
   dat[z == 1, ] <- treated[z == 1, ]
@@ -159,6 +258,30 @@ simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE,
     }
     return(cbind(dat, control, treated, x, z = z, frailty = frailty))
   }
+}
+
+
+
+#' Simulate data for different scenarios
+#' 
+#' @param n Sample size
+#' @param seed Seed
+#' @param scenario Scenario; see \code{\link{return_dgp_parameters}}
+#' @param censor Whether to impose censoring. Defaults to TRUE. (If FALSE, 
+#' applies uniform censoring at starting at 2 * 99.999 percentile to ensure
+#' essentially no censoring takes place.)
+#' @param observed Whether to only return data set of observed potential outcomes
+#' or to include both sets. Defaults to TRUE.
+#' @param add_imp Whether to add _imp suffix to the potential outcomes
+#' @return Data frame
+#' @export
+simulate_scenario <- function(n = 5000, seed = 123, scenario, censor = TRUE, 
+                              observed = TRUE, add_imp = FALSE) {
+  P <- 4
+  params <- return_dgp_parameters(scenario = as.character(scenario), P = P)
+  res <- simulate_from_param(n = n, seed = seed, params = params, censor = censor, 
+                             observed = observed, add_imp = add_imp)
+  return(res)
 }
 
 
