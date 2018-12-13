@@ -21,13 +21,15 @@ Imports:
     survival, 
     SemiCompRisks, 
     batchtools, 
-    data.table, 
+    data.table,
+    MatchIt,
     ggplot2,
     gridExtra, 
     RColorBrewer, 
     reshape2, 
     ggridges, 
-    ggpubr
+    ggpubr,
+    directlabels
 LinkingTo: 
     StanHeaders (>= 2.17.2), 
     rstan (>= 2.17.2), 
