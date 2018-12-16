@@ -11,6 +11,7 @@ data {
   vector<lower=0>[N] yt;
   int<lower=0,upper=1> dyr[N];
   int<lower=0,upper=1> dyt[N];
+  int<lower=0,upper=1> shared_beta;
   int<lower=0,upper=1> use_priors;
   vector[6] log_alpha_pmean;
   vector[6] log_kappa_pmean;
@@ -21,6 +22,8 @@ data {
 transformed data {
   vector[N] type;
   int start_i[N];
+  int ncol_beta = (shared_beta == 1) ? 3 : 6;
+  int beta_start_i[N];
   real log_kappa_psd = log(100) / 2;
   real log_alpha_psd = 2;
   
@@ -35,12 +38,18 @@ transformed data {
     } else if (dyr[n] == 1 && dyt[n] == 1) {
       type[n] = 4; // type 4: both non-terminal and terminal observed
     }
+    
+    if (ncol_beta == 6) {
+      beta_start_i[n] = start_i[n];
+    } else {
+      beta_start_i[n] = 1;
+    }
   } // end looping over n
 }
 
 parameters {
   // vectors of regression parameters
-  matrix[P, 3] beta;
+  matrix[P, ncol_beta] beta;
   
   // shape parameters (the one in exponent of time)
   // alpha > 1 -> hazard increases over time, more clumping
@@ -63,9 +72,10 @@ transformed parameters {
 }
 
 model {
-  matrix[N, 3] lp = x * beta;
+  matrix[N, ncol_beta] lp = x * beta;
   vector[N] ll;
   int i;
+  int bi;
   real lp1;
   real lp2;
   real lp3;
@@ -85,9 +95,10 @@ model {
   // likelihood
   for (n in 1:N) {
     i = start_i[n];
-    lp1 = lp[n, 1] + log_kappa[i];
-    lp2 = lp[n, 2] + log_kappa[i + 1];
-    lp3 = lp[n, 3] + log_kappa[i + 2];
+    bi = beta_start_i[n];
+    lp1 = lp[n, bi] + log_kappa[i];
+    lp2 = lp[n, bi + 1] + log_kappa[i + 1];
+    lp3 = lp[n, bi + 2] + log_kappa[i + 2];
     
     if (type[n] == 1) {
       target += -inv_sigma * log1p(sigma * 

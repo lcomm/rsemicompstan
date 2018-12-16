@@ -2,22 +2,14 @@ language: r
 sudo: true
 cache: packages
 
-latex: true
-r_build_args: '--no-build-vignettes'
-r_check_args: '--ignore-vignettes --no-examples'
-
-r_binary_packages:
-  - data.table
-  - SemiCompRisks
-
-r_github_packages:
-  - jimhester/covr
 
 matrix:
   include:
     - os: linux
       dist: trusty
       r: release
+      r_binary_packages:
+        - devtools
       addons:
         apt:
           sources:
@@ -29,6 +21,8 @@ matrix:
     - os: linux
       dist: trusty
       r: devel
+      r_binary_packages:
+        - devtools
       addons:
         apt:
           sources:
@@ -38,10 +32,11 @@ matrix:
       env:
         - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
     - os: osx
+      fortran: false
       osx_image: xcode10
       r: release
-      fortran: false
 
+     
 before_install:
   - mkdir -p ~/.R/
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then echo "CXX14 = g++-7 -fPIC" >> ~/.R/Makevars; fi
@@ -49,18 +44,5 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then echo "CXX14 = clang++ -arch x86_64 -ftemplate-depth-256" >> ~/.R/Makevars; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then echo "CXX14FLAGS = -O3 -mtune=native -march=native -Wno-unused-variable -Wno-unused-function  -Wno-unknown-pragmas" >> ~/.R/Makevars; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then echo "CC = clang" >> ~/.R/Makevars; fi
-
-script: 
-  - |
-    travis_wait 42 R CMD build .
-    travis_wait 59 R CMD check rsemicompstan*tar.gz
-
-after_script:
-  - tar -ztvf rsemicompstan_*.tar.gz
-  - echo ${NOT_CRAN}
-
-after_success:
-  - travis_wait 40 tar -C .. -xf $PKG_TARBALL
-
-after_failure:
-  - cat rsemicompstan.Rcheck/00*
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then sudo tlmgr install inconsolata; fi
+  
