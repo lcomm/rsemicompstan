@@ -1,8 +1,8 @@
 Package: rsemicompstan
 Type: Package
 Title: Semicompeting Risks in Stan
-Version: 0.1
-Date: 2018-01-05
+Version: 0.2
+Date: 2018-12-16
 Authors@R: c(person("Leah", "Comment", email = "leah.comment+r@gmail.com", role = "cre"))
 Author: Leah Comment [aut, cre]
 Maintainer: Leah Comment <leah.comment+r@gmail.com>
@@ -10,10 +10,10 @@ Description: This packages uses Stan to fit parametric illness-death models with
 License: License: GPL (>=3)
 SystemRequirements: GNU Make
 Depends: 
-    R (>= 3.3.0), 
+    R (>= 3.4.0), 
     Rcpp (>= 0.12.14), 
 Imports: 
-    rstan (>= 2.17.2), 
+    rstan (>= 2.18.1), 
     rstantools (>= 1.4.0), 
     methods,
     stats, 
@@ -30,9 +30,9 @@ Imports:
     ggpubr,
     directlabels
 LinkingTo: 
-    StanHeaders (>= 2.17.2), 
-    rstan (>= 2.17.2), 
-    BH (>= 1.65.0.1), 
+    StanHeaders (>= 2.18.0), 
+    rstan (>= 2.18.1), 
+    BH (>= 1.66.0), 
     Rcpp (>= 0.12.14), 
     RcppEigen (>= 0.3.3.3.1)
 Suggests:

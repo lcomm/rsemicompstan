@@ -13,7 +13,6 @@
 #' @import batchtools
 #' @import ggplot2
 #' @importFrom data.table rbindlist CJ
-#' @importFrom SemiCompRisks simID
 #' @importFrom utils read.csv
 #' @importFrom gridExtra grid.arrange
 #' @importFrom RColorBrewer brewer.pal
