@@ -38,10 +38,10 @@ process_clear_registry <- function(clear_existing, registry) {
 #' replicates using a batchtools registry
 #' 
 #' @param registry batchtools registry object
-#' @param scenario TRUE/FALSE for whether to make effects transportable
+#' @param scenario Scenario vector (\code{scenario = 1:3} does all 3)
 #' @param seed Seed vector (\code{seed = 1:R} does R replicates)
 #' @param clear_existing Whether to clear existing registry first
-#' @param n Values for (big) sample sizes
+#' @param n Values for sample sizes
 #' @param iter Number of MCMC iterations
 #' @param chains Number of MCMC chains
 #' @param chunk.size How many jobs should be chunked together
@@ -53,8 +53,10 @@ process_clear_registry <- function(clear_existing, registry) {
 #' @export
 submit_scenario_jobs <- function(registry, scenario, seed, 
                                  clear_existing = FALSE,
-                                 n = 5000,
+                                 n = 6000,
                                  iter = 2000, chains = 4,
+                                 eval_t = c(30, 90),
+                                 parallelize_chains = TRUE,
                                  chunk.size = 1,
                                  time_each = 120,
                                  memory = 1500,
@@ -66,13 +68,21 @@ submit_scenario_jobs <- function(registry, scenario, seed,
   prog_opt <- getOption("batchtools.progress")
   options(batchtools.progress = FALSE)
   
+  # Calculate truths only once
+  truths <- summarize_scenario_truths(scenarios = scenario, eval_t = eval_t)
+  
   # Make job
   args <- data.table::CJ(seed = seed,
                          scenario = scenario, 
                          n = n)
-  batchtools::batchMap(fun = run_scr_replicate, 
+  batchtools::batchMap(fun = run_replicate_with_oc, 
                        args = args, 
-                       more.args = list(iter = iter, chains = chains, ...), 
+                       more.args = list(iter = iter, chains = chains, 
+                                        truths = truths, 
+                                        mc.cores = ifelse(parallelize_chains, 
+                                                          chains, 
+                                                          1),
+                                        ...), 
                        reg = registry)
   
   walltime <- 60 * time_each * chunk.size
@@ -82,7 +92,11 @@ submit_scenario_jobs <- function(registry, scenario, seed,
                          resources = list(walltime = walltime,
                                           memory = memory,
                                           max.concurrent.jobs = 
-                                            max.concurrent.jobs))
+                                            max.concurrent.jobs,
+                                          ncpus = ifelse(parallelize_chains, 
+                                                         chains, 
+                                                         1),
+                                          ntasks = 1))
   
   # Reset option
   options(batchtools.progress = prog_opt)

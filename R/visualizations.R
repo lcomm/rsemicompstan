@@ -5,18 +5,17 @@
 #' all covariates are centered.
 #' 
 #' @param scenario Data generation scenario
-#' @param P Number of covariates for DGP. Defaults to 4.
 #' @param max_t Maximum time (used only for upper bounding rootfinding)
 #' @return Scalar time at which to evaluate the probability of being an 
 #' always-survivor
 #' @export
-get_color_t <- function(scenario, P = 4, max_t = get_eval_t()[2]) {
+get_color_t <- function(scenario, max_t = get_eval_t()[2]) {
   
   f_median <- function(x, a1, b1, a2, b2) {
     log(0.5) + (x / b1)^a1 + (x / b2)^a2
   }
   
-  params <- return_dgp_parameters(scenario, P = P)
+  params <- return_dgp_parameters(scenario)
   a1 <- params$alpha1
   b1 <- make_scale(lp = log(params$control$kappa1), 
                    alpha = params$control$alpha1)

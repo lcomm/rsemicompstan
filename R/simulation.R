@@ -40,22 +40,50 @@ simulate_covariates <- function(n = 100, p = 3) {
 
 
 
+#' Simulate lognormal frailty with variance sigma
+#' 
+#' Returns lognormal frailties with expected mean (not location parameter) 1
+#' and variance (not scale parameter) sigma
+#' 
+#' @param n Number of frailties to sample
+#' @param sigma Variance of a gamma distribution to match
+#' @return Vector of n draws from desired curved lognormal distribution
+#' @export
+simulate_lognormal_frailty <- function(n, sigma) {
+  sl <- sqrt(log(sigma + 1))
+  ml <- -(sl^2) / 2
+  frailties <- exp(rnorm(n, mean = ml, sd = sl))
+  return(frailties)
+}
+
+
+
 #' Function to generate frailties
 #' 
 #' Draw n i.i.d. frailties from a Gamma(1 / sigma, 1 / sigma)
+#' or a curved lognormal with the same mean (1) and variance 
+#' as a Gamma(1 / sigma, 1 / sigma)
 #'
 #' @param n Number of observations
-#' @param sigma Variance for gamma frailty
+#' @param sigma Variance for frailty
+#' @param distn Distribution type (gamma or lognormal)
 #' @return Length-n numeric matrix of frailties
 #' @export
-simulate_frailty <- function(n, sigma = 1) {
+simulate_frailty <- function(n, sigma = 1, distn = "gamma") {
   
+  stopifnot(distn %in% c("gamma", "lognormal"))
   stopifnot(is.numeric(sigma), length(sigma) == 1, sigma > 0)
   
   # Variance for rgamma parameterization is shape * scale^2
-  return(rgamma(n, shape = 1 / sigma, scale = sigma))
+  if (distn == "gamma") {
+    frailties <- rgamma(n, shape = 1 / sigma, scale = sigma)
+  } else {
+    frailties <- simulate_lognormal_frailty(n = n, sigma = sigma)
+  }
+  return(frailties)
   
 }
+
 
 
 #' Fit a maximum likelihood model to center log(alpha) and log(kappa)

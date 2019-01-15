@@ -45,7 +45,10 @@
 scr_gamma_frailty_stan <- function(x, z, yr, yt, dyr, dyt, 
                                    shared_beta = FALSE,
                                    use_priors = TRUE, 
-                                   sigma_pa = 0.7, sigma_pb = 0.7, ...) {
+                                   sigma_pa = 0.7, sigma_pb = 0.7, 
+                                   mc.cores = 1, ...) {
+  mc.cores <- min(mc.cores, parallel::detectCores())
+  options(mc.cores = mc.cores)
   if (use_priors) {
     pm <- make_prior_means(yr = yr, yt = yt, dyr = dyr, dyt = dyt)  
   } else {
