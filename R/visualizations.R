@@ -340,40 +340,33 @@ make_kmplot_combined <- function(plot_dat,
                                  color_vals = c("#2E655D", "#0B353B", "#EC3F19"),
                                  legend_position = "none",
                                  time_unit = "Time") {
+  
+  # Calculate overall mean for each
+  f_mean_dat <- reshape2::melt(aggregate(cbind(frac_aa, frac_a_c, frac_a_t) ~
+                                           eval_t,
+                                         data = plot_dat, FUN = mean),
+                               id.vars = "eval_t",
+                               variable.name = "surv_type",
+                               value.name = "survival")
 
-  # Set alpha to lower if many replicates
-  alpha_val <- ifelse(length(unique(plot_dat$r)) < 100, 0.15, 0.0085)
-  
-  # Calculate overall mean for each (currently not used)
-  # f_mean_dat <- reshape2::melt(aggregate(cbind(frac_aa, frac_a_c, frac_a_t) ~
-  #                                          eval_t,
-  #                                        data = plot_dat, FUN = mean),
-  #                              id.vars = "eval_t",
-  #                              variable.name = "surv_type",
-  #                              value.name = "survival")
-  # f_mean_dat$r <- as.numeric(f_mean_dat$surv_type)
-  plot_dat <- plot_dat[, colnames(plot_dat) %in% c("eval_t", "r", "frac_aa",
-                                                   "frac_a_c", "frac_a_t")]
-  plot_dat_long <- reshape2::melt(plot_dat,
-                                  id.vars = c("eval_t", "r"),
-                                  variable.name = "surv_type",
-                                  value.name = "survival")
-  plot_dat_long$r <- as.factor(plot_dat_long$r)
-  
   # Make plot
-  p <- ggplot(data = plot_dat_long,
+  p <- ggplot(data = f_mean_dat,
               aes_string(y = "survival", x = "eval_t", 
-                         color = "surv_type", 
-                         group = "interaction(r, surv_type)")) + 
+                         color = "surv_type",
+                         linetype = "surv_type")) +
     guides(group = FALSE) + 
-    geom_line(alpha = alpha_val) + 
+    geom_line(size = 1.05) +
     ylim(0, 1) + 
-    scale_color_manual("Survival Type", 
+    scale_color_manual("Survival Type",
                        values = color_vals,
                        labels = c("Always-alive", 
                                   "Under z = 1", 
                                   "Under z = 0")) +
-    guides(color = guide_legend(override.aes = list(alpha = 1))) + 
+    scale_linetype_manual("Survival Type", 
+                          values = c(1, 3, 2),
+                          labels = c("Always-alive", 
+                                     "Under z = 1", 
+                                     "Under z = 0")) +
     theme_minimal() +
     theme(panel.grid.major = element_blank(),
           panel.grid.minor = element_blank()) +
