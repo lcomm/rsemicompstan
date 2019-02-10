@@ -9,31 +9,49 @@
 #' @export
 extract_params_b <- function(b, stan_fit) {
   betas  <- as.array(extract(stan_fit, pars = "beta"))[[1]][b, , ]
-  beta1  <- betas[ , 1]
-  beta2  <- betas[ , 2]
-  beta3  <- betas[ , 3]
+  beta1_c <- betas[ , 1]
+  beta2_c <- betas[ , 2]
+  beta3_c <- betas[ , 3]
+  if (ncol(betas) == 6) {
+    beta1_t <- betas[ , 4]
+    beta2_t <- betas[ , 5]
+    beta3_t <- betas[ , 6]  
+  } else if (ncol(betas) == 3) {
+    beta1_t <- betas[ , 1]
+    beta2_t <- betas[ , 2]
+    beta3_t <- betas[ , 3]  
+  } else {
+    stop("Should be 3 or 6 columns of regression coefficients!")
+  }
   alphas <- as.array(extract(stan_fit, pars = "alpha"))[[1]][b, ]
   kappas <- as.array(extract(stan_fit, pars = "kappa"))[[1]][b, ]
   sigma  <- as.array(extract(stan_fit, pars = "sigma"))[[1]][b]
-  dgps   <- list(treated = list(beta1 = beta1,
-                                beta2 = beta2,
-                                beta3 = beta3,
+  dgps   <- list(treated = list(beta1 = beta1_t,
+                                beta2 = beta2_t,
+                                beta3 = beta3_t,
                                 alpha1 = alphas[4],
                                 alpha2 = alphas[5],
                                 alpha3 = alphas[6],
                                 kappa1 = kappas[4],
                                 kappa2 = kappas[5],
-                                kappa3 = kappas[6]),
-                 control = list(beta1 = beta1,
-                                beta2 = beta2,
-                                beta3 = beta3,
+                                kappa3 = kappas[6],
+                                omega1 = 1, 
+                                omega2 = 1, 
+                                omega3 = 1),
+                 control = list(beta1 = beta1_c,
+                                beta2 = beta2_c,
+                                beta3 = beta3_c,
                                 alpha1 = alphas[1],
                                 alpha2 = alphas[2],
                                 alpha3 = alphas[3],
                                 kappa1 = kappas[1],
                                 kappa2 = kappas[2],
-                                kappa3 = kappas[3]),
-                 sigma = sigma)
+                                kappa3 = kappas[3],
+                                omega1 = 1, 
+                                omega2 = 1, 
+                                omega3 = 1),
+                 sigma = sigma,
+                 distn = "gamma")
   return(dgps)
 }
 
@@ -49,32 +67,50 @@ extract_params_b <- function(b, stan_fit) {
 #' @export
 extract_params_fitsummary <- function(stan_fit, summary_measure = "mean") {
   betas  <- matrix(summary(stan_fit, pars = "beta")$summary[ , summary_measure],
-                   ncol = 3, byrow = TRUE)
-  beta1 <- betas[ , 1]
-  beta2 <- betas[ , 2]
-  beta3 <- betas[ , 3]
+                   nrow = ncol(stan_fit$dat$xmat), byrow = TRUE)
+  beta1_c <- betas[ , 1]
+  beta2_c <- betas[ , 2]
+  beta3_c <- betas[ , 3]
+  if (ncol(betas) == 6) {
+    beta1_t <- betas[ , 4]
+    beta2_t <- betas[ , 5]
+    beta3_t <- betas[ , 6]  
+  } else if (ncol(betas) == 3) {
+    beta1_t <- betas[ , 1]
+    beta2_t <- betas[ , 2]
+    beta3_t <- betas[ , 3]  
+  } else {
+    stop("Should be 3 or 6 columns of regression coefficients!")
+  }
   alphas <- summary(stan_fit, pars = "alpha")$summary[ , summary_measure]
   kappas <- summary(stan_fit, pars = "kappa")$summary[ , summary_measure]
   sigma  <- summary(stan_fit, pars = "sigma")$summary[ , summary_measure]
-  dgps   <- list(treated = list(beta1 = beta1,
-                                beta2 = beta2,
-                                beta3 = beta3,
+  dgps   <- list(treated = list(beta1 = beta1_t,
+                                beta2 = beta2_t,
+                                beta3 = beta3_t,
                                 alpha1 = alphas[4],
                                 alpha2 = alphas[5],
                                 alpha3 = alphas[6],
                                 kappa1 = kappas[4],
                                 kappa2 = kappas[5],
-                                kappa3 = kappas[6]),
-                 control = list(beta1 = beta1,
-                                beta2 = beta2,
-                                beta3 = beta3,
+                                kappa3 = kappas[6],
+                                omega1 = 1, 
+                                omega2 = 1, 
+                                omega3 = 1),
+                 control = list(beta1 = beta1_c,
+                                beta2 = beta2_c,
+                                beta3 = beta3_c,
                                 alpha1 = alphas[1],
                                 alpha2 = alphas[2],
                                 alpha3 = alphas[3],
                                 kappa1 = kappas[1],
                                 kappa2 = kappas[2],
-                                kappa3 = kappas[3]),
-                 sigma = sigma)
+                                kappa3 = kappas[3],
+                                omega1 = 1, 
+                                omega2 = 1, 
+                                omega3 = 1),
+                 sigma = sigma,
+                 distn = "gamma")
   return(dgps)
 }
 
@@ -171,10 +207,12 @@ calculate_frac_aa_disc_b <- function(eval_t, frac_aa_obs, b, seed, stan_fit, z,
                           observed = FALSE, add_imp = TRUE)
   
   frac_aa_rep <- calculate_frac_aa_rep(eval_t = eval_t, dat = rep_dat)
+  
   # Unlike KM, which is constant across b, compare to bth posterior predicted in observed
   test_frac_aa_disc_b <- (frac_aa_obs[ , b] > frac_aa_rep)[ , -1] # omit eval_t column
   return(test_frac_aa_disc_b)
 }
+
 
 
 #' Calculate the Kaplan-Meier discrepancy indicator for a single MCMC
@@ -203,6 +241,73 @@ calculate_km_disc_b <- function(eval_t, km_obs, b, seed, stan_fit, z, x,
 
 
 
+#' Conduct a one sample Kolmogorov-Smirnov test against Gamma(1/sigma, 1/sigma) 
+#' distribution
+#' 
+#' @param x Vector of 
+#' @param sigma Variance of mean-1 gamma distribution for test
+#' @return K-S test statistic
+#' @export
+conduct_ks_test_sigma <- function(x, sigma) {
+  test_res <- suppressWarnings(ks.test(x = x, "pgamma", 
+                                       shape = 1 / sigma, scale = sigma, 
+                                       exact = FALSE, alternative = "two.sided"))
+  return(unname(test_res$statistic))
+}
+
+
+
+#' Calculate the KS test statistic for a single posterior draw b
+#' 
+#' @param b Which MCMC iteration to pull out
+#' @param xs Matrix whose bth row contains the sample to test against gamma
+#' distribution
+#' @param sigmas Vector of sigmas
+#' @return Scalar test statistic from KS test
+conduct_ks_b <- function(b, xs, sigmas) {
+  conduct_ks_test_sigma(x = xs[ , b], sigma = sigmas[b])
+}
+
+
+
+#' Vectorized version of \code{\link{conduct_ks}}
+#' @export
+conduct_ks <- Vectorize(conduct_ks_b, vectorize.args = c("b"))
+
+
+
+#' Calculate the Kolmogorov-Smirnov discrepancy statistic across all posterior 
+#' samples
+#' 
+#' @param rl Result list from \code{\link{run_scr_replicate}} with B MCMC draws
+#' @return Length-B vector of booleans for whether the observed values exceed the
+#' replicate data KS values
+#' @export
+calculate_ks_disc <- function(rl) {
+  
+  gamma_obs <- posterior_predict_sample(stan_fit = rl$stan_fit,
+                                        yt = rl$dat$yt,
+                                        yr = rl$dat$yt,
+                                        dyt = rl$dat$dyt,
+                                        dyr = rl$dat$dyr,
+                                        z = rl$dat$z,
+                                        xmat = rl$xmat, 
+                                        frailty_type = "impute")[ , "frailty", ]
+  B <- ncol(gamma_obs)
+  n <- nrow(gamma_obs)
+  sigmas <- as.array(extract(rl$stan_fit, pars = "sigma"))[[1]]
+  gamma_rep <- sapply(sigmas, FUN = simulate_frailty, n = n, distn = "gamma")
+  
+  test_ks_disc <- rep(NA, B)
+  ks_obs <- conduct_ks(1:B, xs = gamma_obs, sigmas = sigmas)
+  ks_rep <- conduct_ks(1:B, xs = gamma_rep, sigmas = sigmas)
+  test_ks_disc <- (ks_obs > ks_rep)
+  
+  return(test_ks_disc)
+}
+
+
+
 #' Kaplan-Meier discrepancy test statistic function 
 #' 
 #' Vectorized along the MCMC iterations ("b")
@@ -211,12 +316,15 @@ v_calculate_km_disc_b <- Vectorize(FUN = calculate_km_disc_b,
                                    SIMPLIFY = FALSE)
 
 
+
 #' Always-alive discrepancy test statistic function 
 #' 
 #' Vectorized along the MCMC iterations ("b")
 v_calculate_frac_aa_disc_b <- Vectorize(FUN = calculate_frac_aa_disc_b, 
                                         vectorize.args = "b",
                                         SIMPLIFY = TRUE)
+
+
 
 #' Calculate matrix of Kaplan-Meier marginal survival discrepancy test
 #' statistics based on a model fit
