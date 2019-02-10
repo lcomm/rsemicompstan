@@ -124,11 +124,11 @@ return_dgp_parameters <- function(scenario) {
   
   # Make basic lists
   p1 <- list(treated = treated, control = control, sigma = sigma, 
-             fdistn = "gamma")
+             distn = "gamma")
   p2 <- list(treated = treated, control = control, sigma = sigma, 
-             fdistn = "lognormal")
+             distn = "lognormal")
   p3 <- list(treated = treated, control = control, sigma = sigma, 
-             fdistn = "gamma")
+             distn = "gamma")
   
   # Overwrite frailty coeffients for second misspecification type
   p3$control$omega1 <- exp(-0.1) 
@@ -187,7 +187,7 @@ simulate_from_param <- function(n = 5000, seed = 123, params, data_match = NULL,
   }
   
   frailty <- simulate_frailty(n = n, sigma = params$sigma, 
-                              distn = params$fdistn)
+                              distn = params$distn)
   x1 <- x2 <- x3 <- cbind(x, log(frailty))
   if (censor) {
     cens_lb <- get_eval_t() * 0.5
