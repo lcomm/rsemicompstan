@@ -48,6 +48,7 @@ process_clear_registry <- function(clear_existing, registry) {
 #' @param time_each Number of minutes for each job
 #' @param memory Memory to allocate at the smallest n
 #' @param max.concurrent.jobs Maximum number of jobs at the same time
+#' @param submit Whether to actually submit the jobs
 #' @param ... Additional arguments to pass to Stan
 #' @return None; jobs will be submitted and update in registry
 #' @export
@@ -61,6 +62,7 @@ submit_scenario_jobs <- function(registry, scenario, seed,
                                  time_each = 120,
                                  memory = 1500,
                                  max.concurrent.jobs = 4000,
+                                 submit = FALSE,
                                  ...) {
   
   process_clear_registry(clear_existing, registry)
@@ -86,18 +88,23 @@ submit_scenario_jobs <- function(registry, scenario, seed,
                        reg = registry)
   
   walltime <- 60 * time_each * chunk.size
-  batchtools::submitJobs(ids = chunk_registry(reg = registry,
-                                              chunk.size = chunk.size),
-                         reg = registry,
-                         resources = list(walltime = walltime,
-                                          memory = memory,
-                                          max.concurrent.jobs = 
-                                            max.concurrent.jobs,
-                                          ncpus = ifelse(parallelize_chains, 
-                                                         chains, 
-                                                         1),
-                                          ntasks = 1))
-  
-  # Reset option
-  options(batchtools.progress = prog_opt)
+  if (submit) {
+    batchtools::submitJobs(ids = chunk_registry(reg = registry,
+                                                chunk.size = chunk.size),
+                           reg = registry,
+                           resources = list(walltime = walltime,
+                                            memory = memory,
+                                            max.concurrent.jobs = 
+                                              max.concurrent.jobs,
+                                            ncpus = ifelse(parallelize_chains, 
+                                                           chains, 
+                                                           1),
+                                            ntasks = 1))
+    
+    # Reset option
+    options(batchtools.progress = prog_opt)    
+  }
+  else {
+    message("Jobs ready to be submitted.")
+  }
 }
