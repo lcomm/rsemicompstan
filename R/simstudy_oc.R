@@ -159,8 +159,10 @@ prettify_oc_table <- function(tab) {
 #' Make operating characteristics table
 #' 
 #' @param regs List of batchtools registries
+#' @param prettify Whether to apply the \code{\link{prettify_oc_table}} function
+#' @param label Table label in LaTeX
 #' @inheritDotParams knitr::kable
-#' @return
+#' @return String containing LaTeX code
 #' @export
 make_oc_table <- function(regs, prettify = TRUE, label = "tab:simoc", ...) {
   tab <- as.data.frame(data.table::rbindlist(lapply(regs, 
