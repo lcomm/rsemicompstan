@@ -233,7 +233,7 @@ impute_mis <- function(frailty, xmat, alpha, kappa, beta) {
 #' @param xmat N x P design matrix
 #' @param alpha Length-6 vector of Weibull shapes
 #' @param kappa Length-6 vector of Weibull baseline hazards
-#' @param beta P x 3 matrix of regression coefficients
+#' @param beta P x 3 or P x 6 matrix of regression coefficients
 #' @param sigma Scalar frailty variance
 #' @param frailty_type Whether to impute that all frailties are exactly 
 #' one ("reference"), impute from data ("impute"), use provided frailties 
@@ -266,17 +266,28 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
   if (frailty_type != "given") {
     frailty <- rep(NA, n)
   }
+  shared_beta <- (ncol(beta) == 3) * 1
   xmat <- as.matrix(xmat)
   obs <- mis <- matrix(NA, nrow = n, ncol = 4)
   for (zval in 0:1) {
     z_which <- which(z == zval)
     nz <- length(z_which)
     if (zval == 0) {
-      obs_indices <- 1:3
+      obs_beta_indices <- obs_indices <- 1:3
       mis_indices <- 4:6
+      if (shared_beta == 1) {
+        mis_beta_indices <- 1:3
+      } else {
+        mis_beta_indices <- 4:6
+      }
     } else if (zval == 1) {
       obs_indices <- 4:6
-      mis_indices <- 1:3
+      mis_beta_indices <- mis_indices <- 1:3
+      if (shared_beta == 1) {
+        obs_beta_indices <- 1:3
+      } else {
+        obs_beta_indices <- 4:6
+      }
     }
     if (frailty_type == "impute") {
       frailty[z_which] <- impute_frailty(yr = yr[z_which], yt = yt[z_which], 
@@ -285,7 +296,8 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
                                                           nrow = nz), 
                                          alpha = alpha[obs_indices], 
                                          kappa = kappa[obs_indices], 
-                                         beta = beta, sigma = sigma)
+                                         beta = beta[ , obs_beta_indices], 
+                                         sigma = sigma)
     } else if (frailty_type == "reference") {
       frailty[z_which] <- rep(1, length(z_which))  
     } else if (frailty_type == "quantile") {
@@ -301,7 +313,7 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
                                                       nrow = nz), 
                                      alpha = alpha[obs_indices], 
                                      kappa = kappa[obs_indices], 
-                                     beta = beta)
+                                     beta = beta[ , obs_beta_indices])
     } else if (data_type == "new") {
       # New people = simulate from "observed" treatment arm process but do not 
       # truncate to agree with existing outcomes
@@ -309,13 +321,13 @@ posterior_predict_draw <- function(yr, yt, dyr, dyt, z, xmat,
                                      xmat = matrix(xmat[z_which, ], nrow = nz), 
                                      alpha = alpha[obs_indices],
                                      kappa = kappa[obs_indices], 
-                                     beta = beta)
+                                     beta = beta[ , obs_beta_indices])
     }
     mis[z_which, ]   <- impute_mis(frailty = frailty[z_which], 
                                    xmat = matrix(xmat[z_which, ], nrow = nz), 
                                    alpha = alpha[mis_indices],
                                    kappa = kappa[mis_indices], 
-                                   beta = beta)
+                                   beta = beta[ , mis_beta_indices])
   }
   out0 <- out1 <- obs * NA
   out0[z == 0, ] <- obs[z == 0, ]
@@ -376,7 +388,7 @@ posterior_predict_sample <- function(stan_fit, yr, yt, dyr, dyt, z, xmat,
       frailty <- afrailty[, r]
     }
     
-    beta <- matrix(abeta[ , , r], ncol = 3)
+    beta <- matrix(abeta[ , , r], nrow = NCOL(xmat))
     a <- posterior_predict_draw(yr = yr, yt = yt, dyr = dyr, dyt = dyt, 
                                 z = z, xmat = xmat,
                                 alpha = alpha, kappa = kappa, 
@@ -555,7 +567,7 @@ posterior_predict_xnew <- function(xnew, stan_fit, frailty = NULL, frailty_q = 0
     alpha <- aalpha[, r]
     kappa <- akappa[, r]
     sigma <- asigma[r]
-    beta <- matrix(abeta[ , , r], ncol = 3)
+    beta <- matrix(abeta[ , , r], nrow = NCOL(xnew))
     if (!(is.null(frailty))) {
       a <- posterior_predict_draw(yr = zeros, 
                                   yt = zeros, 

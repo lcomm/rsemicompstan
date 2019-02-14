@@ -11,7 +11,6 @@ data {
   vector<lower=0>[N] yt;
   int<lower=0,upper=1> dyr[N];
   int<lower=0,upper=1> dyt[N];
-  int<lower=0,upper=1> shared_beta;
   int<lower=0,upper=1> use_priors;
   vector[6] log_alpha_pmean;
   vector[6] log_kappa_pmean;
@@ -22,8 +21,6 @@ data {
 transformed data {
   vector[N] type;
   int start_i[N];
-  int ncol_beta = (shared_beta == 1) ? 3 : 6;
-  int beta_start_i[N];
   real log_kappa_psd = log(100) / 2;
   real log_alpha_psd = 2;
   
@@ -38,18 +35,12 @@ transformed data {
     } else if (dyr[n] == 1 && dyt[n] == 1) {
       type[n] = 4; // type 4: both non-terminal and terminal observed
     }
-    
-    if (ncol_beta == 6) {
-      beta_start_i[n] = start_i[n];
-    } else {
-      beta_start_i[n] = 1;
-    }
   } // end looping over n
 }
 
 parameters {
   // vectors of regression parameters
-  matrix[P, ncol_beta] beta;
+  matrix[P, 3] beta;
   
   // shape parameters (the one in exponent of time)
   // alpha > 1 -> hazard increases over time, more clumping
@@ -61,6 +52,10 @@ parameters {
   
   // variance of frailties
   real<lower=0> sigma;
+  
+  // individual frailties
+  vector<lower=0>[N] gamma;
+  
 }
 
 transformed parameters {
@@ -72,10 +67,10 @@ transformed parameters {
 }
 
 model {
-  matrix[N, ncol_beta] lp = x * beta;
+  matrix[N, 3] lp = x * beta;
   vector[N] ll;
   int i;
-  int bi;
+  real lgi;
   real lp1;
   real lp2;
   real lp3;
@@ -93,40 +88,28 @@ model {
   }
     
   // likelihood
+  gamma ~ gamma(inv_sigma, inv_sigma);
   for (n in 1:N) {
     i = start_i[n];
-    bi = beta_start_i[n];
-    lp1 = lp[n, bi] + log_kappa[i];
-    lp2 = lp[n, bi + 1] + log_kappa[i + 1];
-    lp3 = lp[n, bi + 2] + log_kappa[i + 2];
-    
+    lgi = log(gamma[i]);
+    lp1 = lp[n, 1] + log_kappa[i] + lgi;
+    lp2 = lp[n, 2] + log_kappa[i + 1] + lgi;
+    lp3 = lp[n, 3] + log_kappa[i + 2] + lgi;
+  
     if (type[n] == 1) {
-      target += -inv_sigma * log1p(sigma * 
-                (-weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
-                 -weibull_lccdf(yt[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1]))));
+      target += weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
+                weibull_lccdf(yt[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1]));
     } else if (type[n] == 2) {
-      target += (weibull_lpdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
-                -weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i]))) +
-                -(inv_sigma + 1) * log1p(sigma * 
-                (-weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
-                 -weibull_lccdf(yr[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1])) + 
-                 -weibull_lccdf(yt[n] - yr[n] | alpha[i + 2], exp(-(lp3)/alpha[i + 2]))));
+      target += weibull_lpdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
+                weibull_lccdf(yr[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1])) + 
+                weibull_lccdf(yt[n] - yr[n] | alpha[i + 2], exp(-(lp3)/alpha[i + 2]));
     } else if (type[n] == 3) {
       target += weibull_lpdf(yt[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1])) +
-                -weibull_lccdf(yt[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1])) +
-                -(inv_sigma + 1) * log1p(sigma * 
-                (-weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
-                 -weibull_lccdf(yt[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1]))));
+                weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i]));
     } else if (type[n] == 4) {
-      target += log1p(sigma) + 
-                (weibull_lpdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
-                -weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i]))) +
-                (weibull_lpdf(yt[n] - yr[n] | alpha[i + 2], exp(-(lp3)/alpha[i + 2])) +
-                -weibull_lccdf(yt[n] - yr[n] | alpha[i + 2], exp(-(lp3)/alpha[i + 2]))) +
-                -(inv_sigma + 2) * log1p(sigma * 
-                (-weibull_lccdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
-                 -weibull_lccdf(yr[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1])) + 
-                 -weibull_lccdf(yt[n] - yr[n] | alpha[i + 2], exp(-(lp3)/alpha[i + 2]))));
+      target += weibull_lpdf(yr[n] | alpha[i], exp(-(lp1)/alpha[i])) +
+                weibull_lpdf(yt[n] - yr[n] | alpha[i + 2], exp(-(lp3)/alpha[i + 2])) +
+                weibull_lccdf(yr[n] | alpha[i + 1], exp(-(lp2)/alpha[i + 1]));
     }
   }
 }

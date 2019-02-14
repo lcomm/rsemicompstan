@@ -8,6 +8,10 @@
 #' non-terminal event
 #' @param dyt Length-N vector binary indicators for having observed the 
 #' terminal event
+#' @param shared_beta Whether to use transition-specific hazards which force
+#' adjustment covariate coefficients to be the same across treatment arms 
+#' (\code{shared_beta = TRUE}) or allow all models to have different coefficients
+#' (\code{shared_beta = FALSE})
 #' @param use_priors Whether to use weakly informative/data-driven priors
 #' @param sigma_pa Hyperparameter alpha for inverse gamma prior on sigma
 #' @param sigma_pb Hyperparameter beta for inverse gamma prior on sigma. Prior 
@@ -33,12 +37,18 @@
 #' resg <- scr_gamma_frailty_stan(x = x1, z = z, yr = dat$y1, yt = dat$y2,
 #'                                dyr = dat$delta1, dyt = dat$delta2,
 #'                                use_priors = TRUE,
+#'                                shared_beta = TRUE,
 #'                                sigma_pa = 0.6, sigma_pb = 0.6,
 #'                                iter = 2000, chains = 4)
 #' }
 #' @export
-scr_gamma_frailty_stan <- function(x, z, yr, yt, dyr, dyt, use_priors = TRUE, 
-                                   sigma_pa = 0.7, sigma_pb = 0.7, ...) {
+scr_gamma_frailty_stan <- function(x, z, yr, yt, dyr, dyt, 
+                                   shared_beta = FALSE,
+                                   use_priors = TRUE, 
+                                   sigma_pa = 0.7, sigma_pb = 0.7, 
+                                   mc.cores = 1, ...) {
+  mc.cores <- min(mc.cores, parallel::detectCores())
+  options(mc.cores = mc.cores)
   if (use_priors) {
     pm <- make_prior_means(yr = yr, yt = yt, dyr = dyr, dyt = dyt)  
   } else {
@@ -52,6 +62,7 @@ scr_gamma_frailty_stan <- function(x, z, yr, yt, dyr, dyt, use_priors = TRUE,
                                      yt = yt,
                                      dyr = dyr,
                                      dyt = dyt,
+                                     shared_beta = shared_beta * 1,
                                      use_priors = use_priors * 1,
                                      log_alpha_pmean = pm$log_alpha_pmean,
                                      log_kappa_pmean = pm$log_kappa_pmean,
