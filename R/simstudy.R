@@ -95,28 +95,27 @@ modified_simID <- function(id = NULL, x1, x2, x3,
 return_dgp_parameters <- function(scenario) {
   
   # Set reference rates
-  strong_sigma <- 1.2
-  control <- list(beta1 = c(0.34402, -0.14652, 0.35407, 0.33832, -0.11605),
-                  beta2 = c(-0.22843, -0.10205, 0.43752, 0.58252, 0.33016),
-                  beta3 = c(0.11858, -0.10549, 0.46426, 0.55319, 0.07844),
-                  alpha1 = 0.96949,
-                  alpha2 = 1.19239,
-                  alpha3 = 0.91350,
-                  kappa1 = 0.01591,
-                  kappa2 = 0.00322,
-                  kappa3 = 0.00857)
-  treated <- list(beta1 = c(0.12413, -0.48149, 0.64025, 0.24664, -0.17149),
-                  beta2 = c(-0.38046, -0.57772, 0.6031, 0.57706, 0.21149),
-                  beta3 = c(0.16526, -0.1467, 0.46675, 0.35684, 0.15129),
-                  alpha1 = 1.04497,
-                  alpha2 = 1.30856,
-                  alpha3 = 0.94227,
-                  kappa1 = 0.0147,
-                  kappa2 = 0.0041,
-                  kappa3 = 0.01352)
+  control <- list(beta1 = c(0.21537157, -0.26932174, 0.49194421, 0.27514607, -0.14071239),
+                  beta2 = c(-0.2626574, -0.3222480, 0.5197795, 0.6148415, 0.2845544),
+                  beta3 = c(0.16109025, -0.11529380, 0.44072580, 0.40880864, 0.09707071),
+                  alpha1 = 0.9430335,
+                  alpha2 = 1.168319,
+                  alpha3 = 0.9274266,
+                  kappa1 = 0.01705684,
+                  kappa2 = 0.00311288,
+                  kappa3 = 0.008266903)
+  treated <- list(beta1 = c(0.21537157, -0.26932174, 0.49194421, 0.27514607, -0.14071239),
+                  beta2 = c(-0.2626574, -0.3222480, 0.5197795, 0.6148415, 0.2845544),
+                  beta3 = c(0.16109025, -0.11529380, 0.44072580, 0.40880864, 0.09707071),
+                  alpha1 = 1.011288,
+                  alpha2 = 1.262802,
+                  alpha3 = 0.9295144,
+                  kappa1 = 0.01577002,
+                  kappa2 = 0.004571768,
+                  kappa3 = 0.01403546)
   
   # Frailty variance
-  sigma <- 1.44256
+  sigma <- 1.314846
   
   # Frailty importances (not used in model fit but used to induce misspecification)
   control$omega1 <- control$omega2 <- control$omega3 <- 1
@@ -364,7 +363,7 @@ run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4,
                                      use_priors = TRUE, 
                                      sigma_pa = sigma_pa, sigma_pb = sigma_pb,
                                      iter = iter, chains = chains,
-                                     mc.core = mc.cores,
+                                     mc.cores = mc.cores,
                                      ...)
   return(list(dat = dat, xmat = xmat, stan_fit = stan_fit))
 }
@@ -412,10 +411,10 @@ simulate_scenario_truth <- function(scenario = 1, add_imp = FALSE) {
 #' @param eval_t Time points at which to evaluate effects. Default is 30 and 90.
 #' @return Data frame of truths (obtained via simulation of a large data set)
 #' @export
-summarize_scenario_truths <- function(scenarios = 1:3, eval_t = c(30, 90)) {
+summarize_scenario_truths <- function(scenarios = 1:3, eval_t = c(30, 60, 90)) {
   true_dat <- list()
   truths <- expand.grid(eval_t = eval_t, scenario = scenarios, 
-                        rm_sace = NA, tv_sace = NA, frac_aa = NA)
+                        tv_sace = NA, rm_sace = NA, frac_aa = NA)
   for (s in scenarios) {
     true_dat[[s]] <- simulate_scenario_truth(scenario = s, add_imp = TRUE)
     truths$tv_sace[truths$scenario == s] <- 
@@ -458,7 +457,7 @@ pp_from_result_list <- function(rl) {
 #' @return Named list of estimates (\code{estimates}) and credible intervals
 #' (\code{cis})
 #' @export
-process_replicate_rl <- function(rl, eval_t = c(30, 90), alpha = 0.05) {
+process_replicate_rl <- function(rl, eval_t = c(30, 60, 90), alpha = 0.05) {
   
   stopifnot(0 < alpha, alpha < 1)
   
@@ -475,9 +474,24 @@ process_replicate_rl <- function(rl, eval_t = c(30, 90), alpha = 0.05) {
                     rm_sace = colMeans(rm_sace),
                     frac_aa = colMeans(frac_aa))
   ps <- c(alpha / 2, 1 - alpha / 2)
-  cis <- list(tv_sace = t(apply(tv_sace, MARGIN = 2, FUN = quantile, p = ps)),
-              rm_sace = t(apply(rm_sace, MARGIN = 2, FUN = quantile, p = ps)),
-              frac_aa = t(apply(frac_aa, MARGIN = 2, FUN = quantile, p = ps)))
+  if (length(unique(tv_sace)) > 3) {
+    tv_ci <- t(apply(tv_sace, MARGIN = 2, FUN = quantile, p = ps))
+  } else {
+    tv_ci <- c(NA, NA)
+  }
+  if (length(unique(rm_sace)) > 3) {
+    rm_ci <- t(apply(rm_sace, MARGIN = 2, FUN = quantile, p = ps))
+  } else {
+    rm_ci <- c(NA, NA)
+  }
+  if (length(unique(frac_aa)) > 3) {
+    aa_ci <- t(apply(frac_aa, MARGIN = 2, FUN = quantile, p = ps))
+  } else {
+    aa_ci <- c(NA, NA)
+  }
+  cis <- list(tv_sace = tv_ci,
+              rm_sace = rm_ci,
+              frac_aa = aa_ci)
   return(list(estimates = estimates, cis = cis))
 }
 
@@ -534,10 +548,9 @@ calculate_ci_width_all_t <- function(r, name) {
 #' @return Named list of estimates, credible intervals, bias, CI coverage, and 
 #' CI width
 #' @export
-get_replicate_oc <- function(r, truths, scenario, eval_t = c(30, 90)) {
+get_replicate_oc <- function(r, truths, scenario, eval_t = c(30, 60, 90)) {
   r_p <- process_replicate_rl(rl = r, eval_t = eval_t)
   truth <- truths[truths$scenario == scenario, ]
-  print(truths)
   shell <- data.frame(eval_t = eval_t, tv_sace = NA, rm_sace = NA, frac_aa = NA)
   oc <- list(estimates = shell, cis = shell, bias = shell, 
              ci_coverage = shell, ci_width = shell)
@@ -565,7 +578,7 @@ get_replicate_oc <- function(r, truths, scenario, eval_t = c(30, 90)) {
 #' @return Named list of result (\code{r}) and operating characteristics 
 #' (\code{oc})
 #' @export
-run_replicate_with_oc <- function(scenario, truths, eval_t = c(30, 90), ...) {
+run_replicate_with_oc <- function(scenario, truths, eval_t = c(30, 60, 90), ...) {
 
   stopifnot(scenario %in% truths$scenario)
   for (t_value in eval_t) {
@@ -574,4 +587,40 @@ run_replicate_with_oc <- function(scenario, truths, eval_t = c(30, 90), ...) {
   r <- run_scr_replicate(scenario = scenario, ...) 
   oc <- get_replicate_oc(r, truths, scenario, eval_t)
   return(list(result = r, oc = oc))
+}
+
+
+
+#' Get list of initial values for simulation scenarios
+#' 
+#' Has ugly hard coding 
+#' 
+#' @param scenario Scenario from \code{\link{return_dgp_parameters}}
+#' @param chains Number of chains to make \code{}
+#' @return Named list of parameter starting values to pass in
+#' @export
+get_init_truth <- function(scenario, chains = 1) {
+  ps <- return_dgp_parameters(scenario)
+  if ((ps$treated$beta1 == ps$control$beta1) &&
+      (ps$treated$beta2 == ps$control$beta2) &&
+      (ps$treated$beta3 == ps$control$beta3)) {
+    beta <- cbind(ps$control$beta1, ps$control$beta2, ps$control$beta3)
+  } else {
+    beta <- cbind(ps$control$beta1, ps$control$beta2, ps$control$beta3,
+                  ps$treated$beta1, ps$treated$beta2, ps$treated$beta3)
+  }
+  
+  # Hard coded from data app medians
+  inits <- list(beta = beta, sigma = ps$sigma, 
+                log_alpha_raw = c(0.13819294, 0.20916905, 0.04498426,
+                                  0.17313192, 0.24805289, 0.04610856),
+                log_kappa_raw = c(-0.1854244, -0.7345255, -0.3628687, 
+                                  -0.2194907, -0.5676037, -0.1329848))
+  if (chains > 1) {
+    inits <- lapply(1:chains, function(x) { 
+      inits$chain_id <- x 
+      return(inits) 
+    })
+  }
+  return(inits)
 }

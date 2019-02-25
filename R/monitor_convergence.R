@@ -213,3 +213,37 @@ parse_warning_code <- function(warning_code) {
     print("energy warning")
 }
 
+
+
+#' Check whether there were convergence problems in simulation replicate
+#' 
+#' @param replicate Job result from \code{\link{submit_scenario_jobs}}
+#' @param n_eff_thresh n_eff / B threshold for \code{\link{check_n_eff}}
+#' @param rhat_thresh R hat threshold for \code{\link{check_rhat}}
+#' @param detailed Whether to return vector of each probed problem
+#' type (\code{TRUE}) or just a summary of whether any problems were
+#' detected (\code{FALSE}). Defaults to \code{TRUE}.
+#' @return Scalar boolean for whether there were any problems or vector of
+#' named problem booleans
+#' @export
+apply_simstudy_conv_criteria <- function(replicate, 
+                                         n_eff_thresh = 0.5, 
+                                         rhat_thresh = 1.1,
+                                         detailed = TRUE) {
+  sf <- replicate$result$stan_fit
+  problems <- rep(NA, 4)
+  names(problems) <- c("n_eff_bad", "div_bad", "rhat_bad", "energy_bad")
+  problems[1] <- check_n_eff(sf, threshold = n_eff_thresh, quiet = TRUE)
+  problems[2] <- check_div(sf, quiet = TRUE)
+  problems[3] <- check_rhat(sf, threshold = rhat_thresh, quiet = TRUE)
+  problems[4] <- check_rhat(sf, quiet = TRUE)
+  if (!detailed) {
+    problems <- any(problems)
+    names(problems) <- "any problem"
+  } else {
+    problems <- c(problems, any(problems))
+    names(problems)[5] <- "any_problem"
+  }
+  return(problems)
+}
+
