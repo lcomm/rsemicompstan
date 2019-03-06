@@ -115,7 +115,11 @@ check_n_eff <- function(stan_fit, threshold = 0.5, quiet=FALSE) {
   no_warning <- TRUE
   for (p in 1:P) {
     ratio <- fit_summary[, 5][p] / iter
-    if (ratio < threshold) {
+    if (is.na(ratio)) {
+      if (!quiet) print(sprintf(">>> n_eff / iter for parameter %s is NaN!",
+                                rownames(fit_summary)[p]))
+      no_warning <- FALSE
+    } else if (ratio < threshold) {
       if (!quiet) print(sprintf(">>> n_eff / iter for parameter %s is %s!",
                                 rownames(fit_summary)[p], ratio))
       no_warning <- FALSE
@@ -130,6 +134,8 @@ check_n_eff <- function(stan_fit, threshold = 0.5, quiet=FALSE) {
     if (quiet) return(TRUE)
   }
 }
+
+
 
 #' Checks the potential scale reduction factors
 #' 
@@ -159,6 +165,7 @@ check_rhat <- function(stan_fit, threshold = 1.02, quiet = FALSE) {
     if (quiet) return(TRUE)
   }
 }
+
 
 
 #' Check all diagnostics for a stan fit object
@@ -227,7 +234,7 @@ parse_warning_code <- function(warning_code) {
 #' named problem booleans
 #' @export
 apply_simstudy_conv_criteria <- function(replicate, 
-                                         n_eff_thresh = 0.5, 
+                                         n_eff_thresh = 0.25, 
                                          rhat_thresh = 1.1,
                                          detailed = TRUE) {
   sf <- replicate$result$stan_fit

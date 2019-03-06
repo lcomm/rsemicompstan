@@ -336,16 +336,20 @@ simulate_truth_scenario <- function(scenario, add_imp = FALSE) {
 #' @param init_r Range for random starting values. Default is 0.5 for (-0.5, 0.5) 
 #' initialization instead the normal (-2, 2) for fewer convergence issues.
 #' @param cens_time Time to apply common administrative right-censoring 
-#' (default is to have random censoring)
+#' (default is to have administrative censoring at t=90)
 #' @param mc.cores Number of cores to run chains on. Default is 1.
 #' @param ... Parameters to pass to Stan via \code{\link{scr_gamma_frailty_stan}}
 #' @return Named list of simulated data (dat), common design matrix (xmat), and 
 #' stan fit (stan_fit) objects
 #' @export
-run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4, 
+run_scr_replicate <- function(n, seed, scenario, 
+                              iter = 5000, 
+                              chains = 1, 
+                              warmup = 4000,
                               sigma_pa = 11, sigma_pb = 2, 
-                              init = "random", init_r = 0.5, 
-                              cens_time = NULL,
+                              init = "random", 
+                              init_r = 0.5, 
+                              cens_time = 90,
                               mc.cores = 1,
                               ...) {
   if (!is.null(cens_time)) {
