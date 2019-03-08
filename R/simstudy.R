@@ -367,6 +367,7 @@ run_scr_replicate <- function(n, seed, scenario,
                                      use_priors = TRUE, 
                                      sigma_pa = sigma_pa, sigma_pb = sigma_pb,
                                      iter = iter, chains = chains,
+                                     init = init, init_r = init_r,
                                      mc.cores = mc.cores,
                                      ...)
   return(list(dat = dat, xmat = xmat, stan_fit = stan_fit))
@@ -597,13 +598,14 @@ run_replicate_with_oc <- function(scenario, truths, eval_t = c(30, 60, 90), ...)
 
 #' Get list of initial values for simulation scenarios
 #' 
-#' Has ugly hard coding 
+#' Has ugly hard coding; also assumes shared betas
 #' 
 #' @param scenario Scenario from \code{\link{return_dgp_parameters}}
-#' @param chains Number of chains to make \code{}
+#' @param chains Number of chains to make initial values for
+#' @param with_randomless Whether to jitter around the true values
 #' @return Named list of parameter starting values to pass in
 #' @export
-get_init_truth <- function(scenario, chains = 1) {
+get_init_truth <- function(scenario, chains = 1, with_randomness = FALSE) {
   ps <- return_dgp_parameters(scenario)
   if ((ps$treated$beta1 == ps$control$beta1) &&
       (ps$treated$beta2 == ps$control$beta2) &&
@@ -615,16 +617,24 @@ get_init_truth <- function(scenario, chains = 1) {
   }
   
   # Hard coded from data app medians
-  inits <- list(beta = beta, sigma = ps$sigma, 
+  inits <- list(beta = beta,
                 log_alpha_raw = c(0.13819294, 0.20916905, 0.04498426,
                                   0.17313192, 0.24805289, 0.04610856),
                 log_kappa_raw = c(-0.1854244, -0.7345255, -0.3628687, 
-                                  -0.2194907, -0.5676037, -0.1329848))
-  if (chains > 1) {
-    inits <- lapply(1:chains, function(x) { 
-      inits$chain_id <- x 
-      return(inits) 
-    })
-  }
+                                  -0.2194907, -0.5676037, -0.1329848),
+                sigma = ps$sigma)
+  inits <- lapply(1:chains, function(x) { 
+             inits$chain_id <- x 
+             if (with_randomness) {
+               inits$beta <- inits$beta + rnorm(n = length(beta), sd = 0.1)
+               inits$log_alpha_raw <- inits$log_alpha_raw + rnorm(n = 6, 
+                                                                  sd = 0.05)
+               inits$log_kappa_raw <- inits$log_kappa_raw + rnorm(n = 6, 
+                                                                  sd = 0.05)
+               inits$sigma <- inits$sigma * exp(rnorm(n = 1, sd = 0.03))
+             }
+             return(inits) 
+           })
   return(inits)
 }
+

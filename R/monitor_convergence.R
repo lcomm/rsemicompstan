@@ -168,6 +168,21 @@ check_rhat <- function(stan_fit, threshold = 1.02, quiet = FALSE) {
 
 
 
+#' Identifies the maximum Rhat across all parameters
+#' 
+#' @param stan_fit Stan fit object
+#' @return Highest potential scale reduction factor Value
+#' @export
+get_max_rhat <- function(stan_fit) {
+  fit_summary <- rstan::summary(stan_fit, probs = c(0.5))$summary
+  P <- dim(fit_summary)[[1]]
+  
+  rhat <- fit_summary[, 6]
+  return(max(rhat, na.rm = TRUE))
+}
+
+
+
 #' Check all diagnostics for a stan fit object
 #' 
 #' @param stan_fit Stan fit object
