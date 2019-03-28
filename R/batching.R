@@ -49,13 +49,14 @@ process_clear_registry <- function(clear_existing, registry) {
 #' @param memory Memory to allocate at the smallest n
 #' @param max.concurrent.jobs Maximum number of jobs at the same time
 #' @param submit Whether to actually submit the jobs
-#' @param ... Additional arguments to pass to Stan
+#' @param ... Additional arguments to pass to Stan or \code{\link{run_scr_replicate}}
 #' @return None; jobs will be submitted and update in registry
 #' @export
 submit_scenario_jobs <- function(registry, scenario, seed, 
                                  clear_existing = FALSE,
                                  n = 6000,
                                  iter = 2000, chains = 4,
+                                 sigma_pa = 21/10, sigma_pb = 25/10,
                                  init_r = 0.5,
                                  shared_beta = TRUE,
                                  init = get_init_truth(scenario = scenario,
@@ -89,6 +90,8 @@ submit_scenario_jobs <- function(registry, scenario, seed,
                                         truths = truths,
                                         init = init, init_r = init_r,
                                         iter = iter, chains = chains, 
+                                        sigma_pa = sigma_pa, 
+                                        sigma_pb = sigma_pb,
                                         mc.cores = ifelse(parallelize_chains, 
                                                           chains, 
                                                           1),
