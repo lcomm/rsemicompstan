@@ -144,6 +144,7 @@ prettify_oc_table <- function(tab) {
   tab$scenario[duplicated(tab$scenario)] <- ""
   min_t <- min(tab$eval_t)
   tab$qty[tab$eval_t != min_t] <- ""
+  tab$mse <- formatC(tab$mse, digits = digits, format = "e")
   
   # Better column headings
   tab <- change_name_if(tab, 
