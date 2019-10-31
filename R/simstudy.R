@@ -336,16 +336,20 @@ simulate_truth_scenario <- function(scenario, add_imp = FALSE) {
 #' @param init_r Range for random starting values. Default is 0.5 for (-0.5, 0.5) 
 #' initialization instead the normal (-2, 2) for fewer convergence issues.
 #' @param cens_time Time to apply common administrative right-censoring 
-#' (default is to have random censoring)
+#' (default is to have administrative censoring at t=90)
 #' @param mc.cores Number of cores to run chains on. Default is 1.
 #' @param ... Parameters to pass to Stan via \code{\link{scr_gamma_frailty_stan}}
 #' @return Named list of simulated data (dat), common design matrix (xmat), and 
 #' stan fit (stan_fit) objects
 #' @export
-run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4, 
-                              sigma_pa = 11, sigma_pb = 2, 
-                              init = "random", init_r = 0.5, 
-                              cens_time = NULL,
+run_scr_replicate <- function(n, seed, scenario, 
+                              iter = 5000, 
+                              chains = 1, 
+                              warmup = 4000,
+                              sigma_pa = 21, sigma_pb = 25, 
+                              init = "random", 
+                              init_r = 0.5, 
+                              cens_time = 90,
                               mc.cores = 1,
                               ...) {
   if (!is.null(cens_time)) {
@@ -363,6 +367,7 @@ run_scr_replicate <- function(n, seed, scenario, iter = 2000, chains = 4,
                                      use_priors = TRUE, 
                                      sigma_pa = sigma_pa, sigma_pb = sigma_pb,
                                      iter = iter, chains = chains,
+                                     init = init, init_r = init_r,
                                      mc.cores = mc.cores,
                                      ...)
   return(list(dat = dat, xmat = xmat, stan_fit = stan_fit))
@@ -593,13 +598,14 @@ run_replicate_with_oc <- function(scenario, truths, eval_t = c(30, 60, 90), ...)
 
 #' Get list of initial values for simulation scenarios
 #' 
-#' Has ugly hard coding 
+#' Has ugly hard coding; also assumes shared betas
 #' 
 #' @param scenario Scenario from \code{\link{return_dgp_parameters}}
-#' @param chains Number of chains to make \code{}
+#' @param chains Number of chains to make initial values for
+#' @param with_randomless Whether to jitter around the true values
 #' @return Named list of parameter starting values to pass in
 #' @export
-get_init_truth <- function(scenario, chains = 1) {
+get_init_truth <- function(scenario, chains = 1, with_randomness = FALSE) {
   ps <- return_dgp_parameters(scenario)
   if ((ps$treated$beta1 == ps$control$beta1) &&
       (ps$treated$beta2 == ps$control$beta2) &&
@@ -611,16 +617,24 @@ get_init_truth <- function(scenario, chains = 1) {
   }
   
   # Hard coded from data app medians
-  inits <- list(beta = beta, sigma = ps$sigma, 
+  inits <- list(beta = beta,
                 log_alpha_raw = c(0.13819294, 0.20916905, 0.04498426,
                                   0.17313192, 0.24805289, 0.04610856),
                 log_kappa_raw = c(-0.1854244, -0.7345255, -0.3628687, 
-                                  -0.2194907, -0.5676037, -0.1329848))
-  if (chains > 1) {
-    inits <- lapply(1:chains, function(x) { 
-      inits$chain_id <- x 
-      return(inits) 
-    })
-  }
+                                  -0.2194907, -0.5676037, -0.1329848),
+                sigma = ps$sigma)
+  inits <- lapply(1:chains, function(x) { 
+             inits$chain_id <- x 
+             if (with_randomness) {
+               inits$beta <- inits$beta + rnorm(n = length(beta), sd = 0.1)
+               inits$log_alpha_raw <- inits$log_alpha_raw + rnorm(n = 6, 
+                                                                  sd = 0.05)
+               inits$log_kappa_raw <- inits$log_kappa_raw + rnorm(n = 6, 
+                                                                  sd = 0.05)
+               inits$sigma <- inits$sigma * exp(rnorm(n = 1, sd = 0.03))
+             }
+             return(inits) 
+           })
   return(inits)
 }
+

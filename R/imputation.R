@@ -81,7 +81,7 @@ make_full_scale <- function(xmat, beta, kappa, alpha, frailty = 1) {
 #' @export
 impute_frailty <- function(yr, yt, dyr, dyt, xmat, alpha, kappa, beta, sigma) {
   n <- length(dyr)
-  soj <- max(0, yt - yr)
+  soj <- pmax(0, yt - yr)
   scale <- make_full_scale(xmat = xmat, 
                            beta = beta, 
                            kappa = kappa, 
