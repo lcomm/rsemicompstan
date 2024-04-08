@@ -1,0 +1,1 @@
+This repository contains an R package, `rsemicompstan`, which has code to simulate and analyze semicompeting risks data. A draft of the manuscript is available [here](https://doi.org/10.48550/arXiv.1902.09304).
